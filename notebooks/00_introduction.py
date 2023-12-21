@@ -26,9 +26,6 @@ pipe = DiffusionPipeline.from_pretrained(
 )
 pipe.to(device)
 
-# if using torch < 2.0
-# pipe.enable_xformers_memory_efficient_attention()
-
 # COMMAND ----------
 
 prompt = "A photo of a dog eating dog food"
@@ -101,6 +98,16 @@ image = refiner(
 # COMMAND ----------
 
 image
+
+# COMMAND ----------
+
+import gc
+
+# delete the base and refiner, and free up some memory
+del base, refiner
+gc.collect()
+torch.cuda.empty_cache()
+dbutils.library.restartPython()
 
 # COMMAND ----------
 
