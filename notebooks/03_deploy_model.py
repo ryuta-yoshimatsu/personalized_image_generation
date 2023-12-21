@@ -66,7 +66,7 @@ my_json = {
    "served_models": [{
      "model_name": model_name,
      "model_version": get_latest_model_version(model_name=model_name),
-     "workload_type": "GPU_MEDIUM",
+     "workload_type": "GPU_SMALL",
      "workload_size": "Small",
      "scale_to_zero_enabled": "false",
    }]
@@ -188,7 +188,7 @@ import json
 import matplotlib.pyplot as plt
 
 # Replace URL with the end point invocation url you get from Model Seriving page. 
-URL = "https://e2-demo-emea.cloud.databricks.com/serving-endpoints/sdxl-fine-tuned-t4/invocations"
+URL = "https://e2-demo-emea.cloud.databricks.com/serving-endpoints/sdxl-fine-tuned/invocations"
 DATABRICKS_TOKEN = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
 INPUT_EXAMPLE = pd.DataFrame({"prompt":["A photo of TOK dog in a tea cup"], "num_inference_steps": 25})
 

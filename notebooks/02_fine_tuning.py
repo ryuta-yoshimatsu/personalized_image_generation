@@ -5,15 +5,6 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Download diffusers SDXL DreamBooth training script.
-
-# COMMAND ----------
-
-#!wget https://raw.githubusercontent.com/huggingface/diffusers/main/examples/dreambooth/train_dreambooth_lora_sdxl.py
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## Train
 
 # COMMAND ----------
@@ -59,20 +50,20 @@
 
 # COMMAND ----------
 
-import os
-from tensorboard import notebook
-logdir = "/databricks/driver/logdir/sdxl/"
-os.environ['logdir'] = logdir
+#import os
+#from tensorboard import notebook
+#logdir = "/databricks/driver/logdir/sdxl/"
+#os.environ['logdir'] = logdir
 
 # COMMAND ----------
 
-notebook.start("--logdir {} --reload_multifile True".format(logdir))
+#notebook.start("--logdir {} --reload_multifile True".format(logdir))
 
 # COMMAND ----------
 
 # To kill a tensorboard process
-from tensorboard import notebook
-notebook.list()
+#from tensorboard import notebook
+#notebook.list()
 #!kill 4730
 
 # COMMAND ----------
@@ -85,7 +76,7 @@ notebook.list()
 
 # COMMAND ----------
 
-# MAGIC %sh accelerate launch --config_file accelerate_configs/deepspeed_zero2.yaml train_dreambooth_lora_sdxl.py \
+# MAGIC %sh accelerate launch --config_file ../yamls/accelerate/zero2.yaml ../personalized_image_generation/train_dreambooth_lora_sdxl.py \
 # MAGIC   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
 # MAGIC   --pretrained_vae_model_name_or_path="madebyollin/sdxl-vae-fp16-fix" \
 # MAGIC   --dataset_name="/dbfs/tmp/ryuta/sdxl/dog" \
