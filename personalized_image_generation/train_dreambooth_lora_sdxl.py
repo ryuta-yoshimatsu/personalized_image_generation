@@ -637,7 +637,8 @@ class DreamBoothDataset(Dataset):
         # we load the training data using load_dataset
         if args.dataset_name is not None:
             try:
-                from datasets import load_dataset
+                #from datasets import load_dataset
+                import datasets
             except ImportError:
                 raise ImportError(
                     "You are trying to load your data using the datasets library. If you wish to train using custom "
@@ -647,13 +648,17 @@ class DreamBoothDataset(Dataset):
             # Downloading and loading a dataset from the hub.
             # See more about loading custom images at
             # https://huggingface.co/docs/datasets/v2.0.0/en/dataset_script
-            dataset = load_dataset(
+            ##########
+            #dataset = datasets.load_dataset(
+            dataset = datasets.load_from_disk(
                 args.dataset_name,
-                args.dataset_config_name,
-                cache_dir=args.cache_dir,
+                #args.dataset_config_name,
+                #cache_dir=args.cache_dir,
             )
             # Preprocessing the datasets.
-            column_names = dataset["train"].column_names
+            ##########
+            #column_names = dataset["train"].column_names
+            column_names = dataset.column_names
 
             # 6. Get the column names for input/target.
             if args.image_column is None:
@@ -665,7 +670,9 @@ class DreamBoothDataset(Dataset):
                     raise ValueError(
                         f"`--image_column` value '{args.image_column}' not found in dataset columns. Dataset columns are: {', '.join(column_names)}"
                     )
-            instance_images = dataset["train"][image_column]
+            ##########
+            #instance_images = dataset["train"][image_column]
+            instance_images = dataset[image_column]
 
             if args.caption_column is None:
                 logger.info(
@@ -679,7 +686,9 @@ class DreamBoothDataset(Dataset):
                     raise ValueError(
                         f"`--caption_column` value '{args.caption_column}' not found in dataset columns. Dataset columns are: {', '.join(column_names)}"
                     )
-                custom_instance_prompts = dataset["train"][args.caption_column]
+                ##########
+                #custom_instance_prompts = dataset["train"][args.caption_column]
+                custom_instance_prompts = dataset[args.caption_column]
                 # create final list of captions according to --repeats
                 self.custom_instance_prompts = []
                 for caption in custom_instance_prompts:

@@ -28,7 +28,7 @@ pipe.to(device)
 
 # COMMAND ----------
 
-prompt = "A photo of a dog eating dog food"
+prompt = "A photo of a cat eating her food."
 images = pipe(prompt=prompt).images[0]
 
 # COMMAND ----------
@@ -78,7 +78,7 @@ high_noise_frac = 0.8
 
 # COMMAND ----------
 
-prompt = "A photo of a dog eating dog food"
+prompt = "A photo of a cat eating her food"
 
 # run both experts
 image = base(

@@ -50,21 +50,20 @@
 
 # COMMAND ----------
 
-#import os
-#from tensorboard import notebook
-#logdir = "/databricks/driver/logdir/sdxl/"
-#os.environ['logdir'] = logdir
+import os
+from tensorboard import notebook
+logdir = "/databricks/driver/logdir/sdxl/"
+os.environ['logdir'] = logdir
 
 # COMMAND ----------
 
-#notebook.start("--logdir {} --reload_multifile True".format(logdir))
+notebook.start("--logdir {} --reload_multifile True".format(logdir))
 
 # COMMAND ----------
 
-# To kill a tensorboard process
-#from tensorboard import notebook
-#notebook.list()
-#!kill 4730
+from tensorboard import notebook
+notebook.list()
+#!kill 50874
 
 # COMMAND ----------
 
@@ -79,9 +78,10 @@
 # MAGIC %sh accelerate launch --config_file ../yamls/accelerate/zero2.yaml ../personalized_image_generation/train_dreambooth_lora_sdxl.py \
 # MAGIC   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
 # MAGIC   --pretrained_vae_model_name_or_path="madebyollin/sdxl-vae-fp16-fix" \
-# MAGIC   --dataset_name="/dbfs/tmp/ryuta/sdxl/dog" \
-# MAGIC   --output_dir="/dbfs/tmp/ryuta/sdxl/dog/corgy_dog_LoRA" \
-# MAGIC   --instance_prompt="a photo of TOK dog" \
+# MAGIC   --dataset_name="/dbfs/tmp/sdxl/data" \
+# MAGIC   --caption_column="caption" \
+# MAGIC   --instance_prompt="" \
+# MAGIC   --output_dir="/dbfs/tmp/sdxl/adaptor/" \
 # MAGIC   --resolution=1024 \
 # MAGIC   --train_batch_size=1 \
 # MAGIC   --gradient_accumulation_steps=3 \
@@ -99,8 +99,16 @@
 
 # COMMAND ----------
 
+# MAGIC %sh ls -ltr /dbfs/tmp/sdxl/adaptor
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Test inference
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -116,14 +124,33 @@ pipe = DiffusionPipeline.from_pretrained(
     use_safetensors=True
     )
     
-pipe.load_lora_weights("/dbfs/tmp/ryuta/sdxl/dog/corgy_dog_LoRA/pytorch_lora_weights.safetensors")
+pipe.load_lora_weights("/dbfs/tmp/sdxl/adaptor/pytorch_lora_weights.safetensors")
 pipe = pipe.to(device)
 
 # COMMAND ----------
 
-prompt = "a photo of TOK dog under a Christmas tree" # @param
-image = pipe(prompt=prompt, num_inference_steps=25).images[0]
-image
+from PIL import Image
+
+def image_grid(imgs, rows, cols, resize=256):
+
+    if resize is not None:
+        imgs = [img.resize((resize, resize)) for img in imgs]
+    w, h = imgs[0].size
+    grid = Image.new("RGB", size=(cols * w, rows * h))
+    grid_w, grid_h = grid.size
+
+    for i, img in enumerate(imgs):
+        grid.paste(img, box=(i % cols * w, i // cols * h))
+    return grid
+
+# COMMAND ----------
+
+cat_types = ["bengal", "maine coon", "ragdoll", "russian blue", "siamese"]
+num_imgs_to_preview = len(cat_types)
+imgs = []
+for cat_type in cat_types:
+  imgs.append(pipe(prompt=f"a photo of {cat_type} cat on a subway", num_inference_steps=25).images[0])
+image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
 # COMMAND ----------
 
@@ -183,7 +210,7 @@ class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
 
 vae_name = "madebyollin/sdxl-vae-fp16-fix"
 model_name = "stabilityai/stable-diffusion-xl-base-1.0"
-output = "/dbfs/tmp/ryuta/sdxl/dog/corgy_dog_LoRA/pytorch_lora_weights.safetensors"
+output = "/dbfs/tmp/sdxl/adaptor/pytorch_lora_weights.safetensors"
 
 # COMMAND ----------
 
@@ -199,7 +226,7 @@ signature = ModelSignature(inputs=input_schema, outputs=output_schema)
 
 # Define input example
 input_example=pd.DataFrame({
-            "prompt":["A photo of TOK dog in a tea cup"], 
+            "prompt":["A photo of a russian blue cat on tree"], 
             "num_inference_steps": [25]})
 
 # Log the model with its details such as artifacts, pip requirements and input example
@@ -220,7 +247,8 @@ with mlflow.start_run() as run:
 
 # Register model
 import mlflow
-registered_name = "sdxl-fine-tuned"
+mlflow.set_registry_uri('databricks-uc')
+registered_name = "sdxl.model.sdxl-fine-tuned"
 result = mlflow.register_model(
     "runs:/" + run.info.run_id + "/model",
     registered_name,
@@ -236,18 +264,16 @@ result = mlflow.register_model(
 
 # COMMAND ----------
 
-# MAGIC %pip install bitsandbytes --quiet
-# MAGIC %pip install -U accelerate transformers --quiet
-# MAGIC %pip install git+https://github.com/huggingface/diffusers --quiet
-# MAGIC dbutils.library.restartPython()
+dbutils.library.restartPython()
 
 # COMMAND ----------
 
 import mlflow
 import pandas as pd
 
-registered_name = "sdxl-fine-tuned"
-logged_model = f"models:/{registered_name}/latest"
+mlflow.set_registry_uri('databricks-uc')
+registered_name = "sdxl.model.sdxl-fine-tuned"
+logged_model = f"models:/{registered_name}/2"
 
 # Load model as a PyFuncModel.
 loaded_model = mlflow.pyfunc.load_model(logged_model)
@@ -255,7 +281,7 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 # COMMAND ----------
 
 # Predict on a Pandas DataFrame.
-input_example = pd.DataFrame({"prompt":["A photo of TOK dog in a tea cup"], "num_inference_steps":[25]})
+input_example = pd.DataFrame({"prompt":["A photo of a ragdoll cat in a tea cup"], "num_inference_steps":[25]})
 image = loaded_model.predict(input_example)
 
 # COMMAND ----------
@@ -263,6 +289,12 @@ image = loaded_model.predict(input_example)
 import matplotlib.pyplot as plt
 plt.imshow(image)
 plt.show()
+
+# COMMAND ----------
+
+from mlflow.tracking.client import MlflowClient
+mlflow.set_registry_uri('databricks-uc')
+MlflowClient().set_registered_model_alias(registered_name, "champion", 2)
 
 # COMMAND ----------
 

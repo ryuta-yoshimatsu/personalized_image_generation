@@ -14,7 +14,11 @@
 
 # COMMAND ----------
 
-model_name = 'sdxl-fine-tuned' #an existing model in model registry, may have multiple versions
+import mlflow
+mlflow.set_registry_uri('databricks-uc')
+client = mlflow.tracking.MlflowClient()
+
+model_name = 'sdxl.model.sdxl-fine-tuned' #an existing model in model registry, may have multiple versions
 model_serving_endpoint_name ='sdxl-fine-tuned'
 
 # COMMAND ----------
@@ -43,13 +47,8 @@ tags = sc._jvm.scala.collection.JavaConversions.mapAsJavaMap(java_tags)
 # Lastly, extract the Databricks instance (domain name) from the dictionary
 instance = tags["browserHostName"]
 
-from mlflow.tracking.client import MlflowClient
-def get_latest_model_version(model_name: str):
-  client = MlflowClient()
-  models = client.get_latest_versions(model_name, stages=["None"])
-  for m in models:
-    new_model_version = m.version
-  return new_model_version
+champion_version = client.get_model_version_by_alias(model_name, "champion")
+model_version = champion_version.version
 
 # COMMAND ----------
 
@@ -65,7 +64,7 @@ my_json = {
   "config": {
    "served_models": [{
      "model_name": model_name,
-     "model_version": get_latest_model_version(model_name=model_name),
+     "model_version": model_version,
      "workload_type": "GPU_SMALL",
      "workload_size": "Small",
      "scale_to_zero_enabled": "false",
@@ -121,7 +120,8 @@ def func_create_endpoint(model_serving_endpoint_name):
           retry = False  
       else:
         print("New config in place now!")
-        retry = False
+        retry = False    
+
   assert re.status_code == 200, f"Expected an HTTP 200 response, received {re.status_code}"
   
 
@@ -133,7 +133,7 @@ def func_delete_model_serving_endpoint(model_serving_endpoint_name):
     raise Exception(f"Request failed with status {response.status_code}, {response.text}")
   else:
     print(model_serving_endpoint_name, "endpoint is deleted!")
-  #return response.json()
+  return response.json()
 
 # COMMAND ----------
 
@@ -148,8 +148,6 @@ func_create_endpoint(model_serving_endpoint_name)
 
 # COMMAND ----------
 
-#GET /api/2.0/serving-endpoints/{name}
-
 import time, mlflow
 
 def wait_for_endpoint():
@@ -162,15 +160,14 @@ def wait_for_endpoint():
         status = response.json().get("state", {}).get("ready", {})
         #print("status",status)
         if status == "READY": print(status); print("-"*80); return
-        else: print(f"Endpoint not ready ({status}), waiting 10 seconds"); time.sleep(30) # Wait 10 seconds
+        else: print(f"Endpoint not ready ({status}), waiting 300 seconds"); time.sleep(300) # Wait 300 seconds
         
 api_url = mlflow.utils.databricks_utils.get_webapp_url()
-#print(api_url)
 
 wait_for_endpoint()
 
 # Give the system just a couple extra seconds to transition
-time.sleep(10)
+time.sleep(300)
 
 # COMMAND ----------
 
@@ -188,13 +185,11 @@ import json
 import matplotlib.pyplot as plt
 
 # Replace URL with the end point invocation url you get from Model Seriving page. 
-URL = "https://e2-demo-emea.cloud.databricks.com/serving-endpoints/sdxl-fine-tuned/invocations"
-DATABRICKS_TOKEN = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
-INPUT_EXAMPLE = pd.DataFrame({"prompt":["A photo of TOK dog in a tea cup"], "num_inference_steps": 25})
+endpoint_url = f"https://{instance}/serving-endpoints/{model_serving_endpoint_name}/invocations"
+token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
 
-def score_model(dataset, url=URL, databricks_token=DATABRICKS_TOKEN):
-    headers = {'Authorization': f'Bearer {databricks_token}', 
-               'Content-Type': 'application/json'}
+def generate_image(dataset, url=endpoint_url, databricks_token=token):
+    headers = {'Authorization': f'Bearer {databricks_token}', 'Content-Type': 'application/json'}
     ds_dict = {'dataframe_split': dataset.to_dict(orient='split')}
     data_json = json.dumps(ds_dict, allow_nan=True)
     response = requests.request(method='POST', headers=headers, url=url, data=data_json)
@@ -202,10 +197,13 @@ def score_model(dataset, url=URL, databricks_token=DATABRICKS_TOKEN):
         raise Exception(f'Request failed with status {response.status_code}, {response.text}')
     return response.json()
 
-# scoring the model
-t = score_model(INPUT_EXAMPLE)
+# COMMAND ----------
 
-# visualizing the predictions
+prompt = pd.DataFrame({"prompt":["A photo of a siamese cat sitting on an arm chair"], "num_inference_steps": 25})
+t = generate_image(prompt)
+
+# COMMAND ----------
+
 plt.imshow(t['predictions'])
 plt.show()
 
@@ -216,4 +214,8 @@ plt.show()
 
 # COMMAND ----------
 
-#func_delete_model_serving_endpoint(model_serving_endpoint_name)
+func_delete_model_serving_endpoint(model_serving_endpoint_name)
+
+# COMMAND ----------
+
+
