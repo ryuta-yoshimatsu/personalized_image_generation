@@ -12,7 +12,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Dataset
+# MAGIC ## Use default images
 
 # COMMAND ----------
 
@@ -37,11 +37,13 @@
 
 from huggingface_hub import snapshot_download
 
-local_dir = "/dbfs/tmp/ryuta/sdxl/dog/"
+# Make sure this directory exists. If not run: %sh mkdir /dbfs/tmp/sdxl/default_images/
+local_dir_default = "/dbfs/tmp/sdxl/default_images/"
 
 snapshot_download(
     "diffusers/dog-example",
-    local_dir=local_dir, repo_type="dataset",
+    local_dir=local_dir_default, 
+    repo_type="dataset",
     ignore_patterns=".gitattributes",
 )
 
@@ -55,13 +57,11 @@ snapshot_download(
 from PIL import Image
 
 def image_grid(imgs, rows, cols, resize=256):
-
     if resize is not None:
         imgs = [img.resize((resize, resize)) for img in imgs]
     w, h = imgs[0].size
     grid = Image.new("RGB", size=(cols * w, rows * h))
     grid_w, grid_h = grid.size
-
     for i, img in enumerate(imgs):
         grid.paste(img, box=(i % cols * w, i // cols * h))
     return grid
@@ -71,7 +71,7 @@ def image_grid(imgs, rows, cols, resize=256):
 import glob
 
 # change path to display images from your local dir
-img_paths = f"{local_dir}*.jpeg"
+img_paths = f"{local_dir_default}*.jpeg"
 imgs = [Image.open(path) for path in glob.glob(img_paths)]
 
 num_imgs_to_preview = 5
@@ -106,11 +106,8 @@ def caption_images(input_image):
 
 # COMMAND ----------
 
-import glob
-from PIL import Image
-
 # create a list of (Pil.Image, path) pairs
-imgs_and_paths = [(path,Image.open(path)) for path in glob.glob(f"{local_dir}*.jpeg")]
+imgs_and_paths = [(path,Image.open(path)) for path in glob.glob(f"{local_dir_default}*.jpeg")]
 
 # COMMAND ----------
 
@@ -127,17 +124,72 @@ imgs_and_paths = [(path,Image.open(path)) for path in glob.glob(f"{local_dir}*.j
 
 import json
 
-caption_prefix = "a photo of TOK dog, " #@param
-with open(f'{local_dir}metadata.jsonl', 'w') as outfile:
-  for img in imgs_and_paths:
-      caption = caption_prefix + caption_images(img[1]).split("\n")[0]
-      entry = {"file_name":img[0].split("/")[-1], "prompt": caption}
-      json.dump(entry, outfile)
-      outfile.write('\n')
+captions = []
+caption_prefix = "a photo of corgi dog, " #@param
+for img in imgs_and_paths:
+    caption = caption_prefix + caption_images(img[1]).split("\n")[0]
+    captions.append(caption)
 
 # COMMAND ----------
 
-dbutils.fs.head("dbfs:/tmp/ryuta/sdxl/dog/metadata.jsonl")
+from datasets import Dataset, Image
+d = {
+    "image": [imgs[0] for imgs in imgs_and_paths],
+    "caption": [caption for caption in captions],
+}
+
+dataset = Dataset.from_dict(d).cast_column("image", Image())
+dataset.save_to_disk('/dbfs/tmp/sdxl/default_data')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##Use your own images
+
+# COMMAND ----------
+
+local_dir = "/dbfs/tmp/sdxl/images/"
+
+# COMMAND ----------
+
+from PIL import Image
+
+# change path to display images from your local dir
+img_paths = f"{local_dir}*/*.jpg"
+imgs = [Image.open(path) for path in glob.glob(img_paths)]
+
+num_imgs_to_preview = 25
+image_grid(imgs[:num_imgs_to_preview], 5, 5)
+
+# COMMAND ----------
+
+import glob
+from PIL import Image
+
+# create a list of (Pil.Image, path) pairs
+imgs_and_paths = [(path,Image.open(path)) for path in glob.glob(f"{local_dir}*/*.jpg")]
+
+# COMMAND ----------
+
+import json
+
+captions = []
+for img in imgs_and_paths:
+    instance_class = img[0].split("/")[5].replace("_", " ")
+    caption_prefix = f"a photo of {instance_class} cat: "
+    caption = caption_prefix + caption_images(img[1]).split("\n")[0]
+    captions.append(caption)
+
+# COMMAND ----------
+
+from datasets import Dataset, Image
+d = {
+    "image": [imgs[0] for imgs in imgs_and_paths],
+    "caption": [caption for caption in captions],
+}
+
+dataset = Dataset.from_dict(d).cast_column("image", Image())
+dataset.save_to_disk('/dbfs/tmp/sdxl/data')
 
 # COMMAND ----------
 
