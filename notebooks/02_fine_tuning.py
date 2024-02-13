@@ -31,10 +31,11 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install datasets bitsandbytes --quiet
-# MAGIC %pip install -U accelerate transformers --quiet
-# MAGIC %pip install git+https://github.com/huggingface/diffusers --quiet
-# MAGIC dbutils.library.restartPython()
+# MAGIC %sh /databricks/python/bin/python -m pip install -r ../requirements.txt --quiet
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -53,17 +54,7 @@
 import os
 from tensorboard import notebook
 logdir = "/databricks/driver/logdir/sdxl/"
-os.environ['logdir'] = logdir
-
-# COMMAND ----------
-
 notebook.start("--logdir {} --reload_multifile True".format(logdir))
-
-# COMMAND ----------
-
-from tensorboard import notebook
-notebook.list()
-#!kill 50874
 
 # COMMAND ----------
 
@@ -75,13 +66,22 @@ notebook.list()
 
 # COMMAND ----------
 
+root_dir = "/Volumes/sdxl"
+theme = "chair"
+os.environ['DATASET_NAME'] = f"{root_dir}/{theme}/dataset"
+os.environ['OUTPUT_DIR'] = f"{root_dir}/{theme}/adaptor"
+os.environ['LOGDIR'] = logdir
+spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
+
+# COMMAND ----------
+
 # MAGIC %sh accelerate launch --config_file ../yamls/accelerate/zero2.yaml ../personalized_image_generation/train_dreambooth_lora_sdxl.py \
 # MAGIC   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
 # MAGIC   --pretrained_vae_model_name_or_path="madebyollin/sdxl-vae-fp16-fix" \
-# MAGIC   --dataset_name="/dbfs/tmp/sdxl/data" \
+# MAGIC   --dataset_name=$DATASET_NAME \
 # MAGIC   --caption_column="caption" \
 # MAGIC   --instance_prompt="" \
-# MAGIC   --output_dir="/dbfs/tmp/sdxl/adaptor/" \
+# MAGIC   --output_dir=$OUTPUT_DIR \
 # MAGIC   --resolution=1024 \
 # MAGIC   --train_batch_size=1 \
 # MAGIC   --gradient_accumulation_steps=3 \
@@ -95,11 +95,11 @@ notebook.list()
 # MAGIC   --checkpointing_steps=717 \
 # MAGIC   --seed="0" \
 # MAGIC   --report_to="tensorboard" \
-# MAGIC   --logging_dir="/databricks/driver/logdir/sdxl"
+# MAGIC   --logging_dir=$LOGDIR
 
 # COMMAND ----------
 
-# MAGIC %sh ls -ltr /dbfs/tmp/sdxl/adaptor
+# MAGIC %sh ls -ltr $OUTPUT_DIR
 
 # COMMAND ----------
 
@@ -114,6 +114,10 @@ dbutils.library.restartPython()
 
 import torch
 from diffusers import DiffusionPipeline, AutoencoderKL
+
+root_dir = "/Volumes/sdxl"
+theme = "chair"
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
 pipe = DiffusionPipeline.from_pretrained(
@@ -123,16 +127,13 @@ pipe = DiffusionPipeline.from_pretrained(
     variant="fp16",
     use_safetensors=True
     )
-    
-pipe.load_lora_weights("/dbfs/tmp/sdxl/adaptor/pytorch_lora_weights.safetensors")
+pipe.load_lora_weights(f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors")
 pipe = pipe.to(device)
 
 # COMMAND ----------
 
 from PIL import Image
-
 def image_grid(imgs, rows, cols, resize=256):
-
     if resize is not None:
         imgs = [img.resize((resize, resize)) for img in imgs]
     w, h = imgs[0].size
@@ -145,11 +146,16 @@ def image_grid(imgs, rows, cols, resize=256):
 
 # COMMAND ----------
 
-cat_types = ["bengal", "maine coon", "ragdoll", "russian blue", "siamese"]
-num_imgs_to_preview = len(cat_types)
+import glob
+
+#types = ['bglct', 'mncct', 'rgdct', 'rsbct', 'smct']
+types = ['bcnchr', 'cbchr', 'emslng', 'hsmnchr', 'rckchr']
+
+num_imgs_to_preview = len(types)
 imgs = []
-for cat_type in cat_types:
-  imgs.append(pipe(prompt=f"a photo of {cat_type} cat on a subway", num_inference_steps=25).images[0])
+for type in types:
+  #imgs.append(pipe(prompt=f"A photo of {type} cat on a tree", num_inference_steps=25).images[0])
+  imgs.append(pipe(prompt=f"A photo of red {type} chair in a living room", num_inference_steps=25).images[0])
 image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
 # COMMAND ----------
@@ -208,14 +214,20 @@ class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
 
 # COMMAND ----------
 
+theme = "chair" # "cat", "chair"
+root_dir = "/Volumes/sdxl"
 vae_name = "madebyollin/sdxl-vae-fp16-fix"
 model_name = "stabilityai/stable-diffusion-xl-base-1.0"
-output = "/dbfs/tmp/sdxl/adaptor/pytorch_lora_weights.safetensors"
+output = f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors"
 
 # COMMAND ----------
 
+import mlflow
 from mlflow.models.signature import ModelSignature
-from mlflow.types import DataType, Schema, ColSpec, TensorSpec
+from mlflow.types import DataType, Schema, ColSpec, TensorSpec 
+import transformers, bitsandbytes, accelerate, deepspeed, diffusers
+
+mlflow.set_registry_uri('databricks-uc')
 
 # Define input and output schema
 input_schema = Schema([
@@ -226,29 +238,29 @@ signature = ModelSignature(inputs=input_schema, outputs=output_schema)
 
 # Define input example
 input_example=pd.DataFrame({
-            "prompt":["A photo of a russian blue cat on tree"], 
+            "prompt":[f"A photo of {theme} in a living room"], 
             "num_inference_steps": [25]})
 
 # Log the model with its details such as artifacts, pip requirements and input example
-# This may take about 1.2 minutes to complete
-torch_version = torch.__version__.split("+")[0]
-
 with mlflow.start_run() as run:
     mlflow.pyfunc.log_model(
         "model",
         python_model=sdxl_fine_tuned(vae_name, model_name),
         artifacts={'repository' : output},
-        pip_requirements=["transformers", "torch", "accelerate", "diffusers", "xformers"],
+        pip_requirements=["transformers=="+transformers.__version__, 
+                          "bitsandbytes=="+bitsandbytes.__version__, 
+                          "accelerate=="+accelerate.__version__, 
+                          "deepspeed=="+deepspeed.__version__, 
+                          "diffusers=="+diffusers.__version__],
         input_example=input_example,
-        signature=signature
+        signature=signature,
     )
+    mlflow.set_tag("dataset", f"{root_dir}/{theme}/dataset")
 
 # COMMAND ----------
 
 # Register model
-import mlflow
-mlflow.set_registry_uri('databricks-uc')
-registered_name = "sdxl.model.sdxl-fine-tuned"
+registered_name = f"sdxl.model.sdxl-fine-tuned-{theme}"
 result = mlflow.register_model(
     "runs:/" + run.info.run_id + "/model",
     registered_name,
@@ -268,12 +280,27 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+def get_latest_model_version(mlflow_client, registered_name):
+    latest_version = 1
+    for mv in mlflow_client.search_model_versions(f"name='{registered_name}'"):
+        version_int = int(mv.version)
+        if version_int > latest_version:
+            latest_version = version_int
+    return latest_version
+
+# COMMAND ----------
+
 import mlflow
+from mlflow import MlflowClient
 import pandas as pd
 
 mlflow.set_registry_uri('databricks-uc')
-registered_name = "sdxl.model.sdxl-fine-tuned"
-logged_model = f"models:/{registered_name}/2"
+mlflow_client = MlflowClient()
+
+theme = "chair" # "cat", "chair"
+registered_name = f"sdxl.model.sdxl-fine-tuned-{theme}"
+model_version = get_latest_model_version(mlflow_client, registered_name)
+logged_model = f"models:/{registered_name}/{model_version}"
 
 # Load model as a PyFuncModel.
 loaded_model = mlflow.pyfunc.load_model(logged_model)
@@ -281,20 +308,21 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 # COMMAND ----------
 
 # Predict on a Pandas DataFrame.
-input_example = pd.DataFrame({"prompt":["A photo of a ragdoll cat in a tea cup"], "num_inference_steps":[25]})
-image = loaded_model.predict(input_example)
-
-# COMMAND ----------
-
 import matplotlib.pyplot as plt
+
+#['bcnchr', 'cbchr', 'emslng', 'hsmnchr', 'rckchr']
+#['bglct', 'mncct', 'rgdct', 'rsbct', 'smct']
+
+input_example = pd.DataFrame({"prompt":["A photo of blue emslng chair in a living room"], "num_inference_steps":[25]})
+#input_example = pd.DataFrame({"prompt":["A photo of mncct cat on a tree"], "num_inference_steps":[25]})
+
+image = loaded_model.predict(input_example)
 plt.imshow(image)
 plt.show()
 
 # COMMAND ----------
 
-from mlflow.tracking.client import MlflowClient
-mlflow.set_registry_uri('databricks-uc')
-MlflowClient().set_registered_model_alias(registered_name, "champion", 2)
+mlflow_client.set_registered_model_alias(registered_name, "champion", model_version)
 
 # COMMAND ----------
 

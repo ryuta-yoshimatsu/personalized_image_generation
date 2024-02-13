@@ -18,8 +18,12 @@ import mlflow
 mlflow.set_registry_uri('databricks-uc')
 client = mlflow.tracking.MlflowClient()
 
-model_name = 'sdxl.model.sdxl-fine-tuned' #an existing model in model registry, may have multiple versions
-model_serving_endpoint_name ='sdxl-fine-tuned'
+catalog = "sdxl"
+schema = "log"
+
+theme = "chair"
+model_name = f"sdxl.model.sdxl-fine-tuned-{theme}" #an existing model in model registry, may have multiple versions
+model_serving_endpoint_name = f"sdxl-fine-tuned-{theme}"
 
 # COMMAND ----------
 
@@ -65,12 +69,20 @@ my_json = {
    "served_models": [{
      "model_name": model_name,
      "model_version": model_version,
-     "workload_type": "GPU_SMALL",
+     "workload_type": "GPU_MEDIUM",
      "workload_size": "Small",
      "scale_to_zero_enabled": "false",
-   }]
+   }],
+   "auto_capture_config": {
+     "catalog_name": catalog,
+     "schema_name": schema,
+     "table_name_prefix": model_serving_endpoint_name
+    }
  }
 }
+
+# Make sure to drop the inference table of it exists
+spark.sql(f"DROP TABLE IF EXISTS {catalog}.{schema}.`{model_serving_endpoint_name}_payload`")
 
 # COMMAND ----------
 
@@ -166,9 +178,6 @@ api_url = mlflow.utils.databricks_utils.get_webapp_url()
 
 wait_for_endpoint()
 
-# Give the system just a couple extra seconds to transition
-time.sleep(300)
-
 # COMMAND ----------
 
 # MAGIC %md
@@ -183,6 +192,11 @@ import requests
 import pandas as pd
 import json
 import matplotlib.pyplot as plt
+
+token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
+theme = "chair"
+model_name = f"sdxl.model.sdxl-fine-tuned-{theme}" #an existing model in model registry, may have multiple versions
+model_serving_endpoint_name = f"sdxl-fine-tuned-{theme}"
 
 # Replace URL with the end point invocation url you get from Model Seriving page. 
 endpoint_url = f"https://{instance}/serving-endpoints/{model_serving_endpoint_name}/invocations"
@@ -199,11 +213,13 @@ def generate_image(dataset, url=endpoint_url, databricks_token=token):
 
 # COMMAND ----------
 
-prompt = pd.DataFrame({"prompt":["A photo of a siamese cat sitting on an arm chair"], "num_inference_steps": 25})
+#['bglct', 'mncct', 'rgdct', 'rsbct', 'smct']
+#['bcnchr', 'emslng', 'hsmnchr', 'mtlchr', 'rckchr']
+
+#prompt = pd.DataFrame({"prompt":["a photo of bglct cat in a livig room"], "num_inference_steps": 25})
+prompt = pd.DataFrame({"prompt":["A photo of yellow bcnchr chair in a living room"], "num_inference_steps": 25})
+
 t = generate_image(prompt)
-
-# COMMAND ----------
-
 plt.imshow(t['predictions'])
 plt.show()
 
