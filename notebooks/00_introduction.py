@@ -1,17 +1,21 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC ##Base
+# MAGIC ## Setup
 
 # COMMAND ----------
 
 # MAGIC %pip install diffusers --upgrade --quiet
-# MAGIC %pip install transformers accelerate safetensors  --quiet
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC To just use the base model, you can run:
+# MAGIC ##Base
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC To use the base model, you can run:
 
 # COMMAND ----------
 
@@ -24,16 +28,16 @@ pipe = DiffusionPipeline.from_pretrained(
   use_safetensors=True, 
   variant="fp16"
 )
+
 pipe.to(device)
 
 # COMMAND ----------
 
-prompt = "A photo of a cat eating her food."
-images = pipe(prompt=prompt).images[0]
-
-# COMMAND ----------
-
-images
+import matplotlib.pyplot as plt
+prompt = "A photo of a chair in a living room."
+image = pipe(prompt=prompt).images[0]
+plt.imshow(image)
+plt.show()
 
 # COMMAND ----------
 
@@ -42,9 +46,8 @@ images
 
 # COMMAND ----------
 
-# MAGIC %pip install diffusers --upgrade --quiet
-# MAGIC %pip install transformers accelerate safetensors  --quiet
-# MAGIC dbutils.library.restartPython()
+# MAGIC %md
+# MAGIC To use the base and the refiner models, you can run:
 
 # COMMAND ----------
 
@@ -78,7 +81,9 @@ high_noise_frac = 0.8
 
 # COMMAND ----------
 
-prompt = "A photo of a cat eating her food"
+import matplotlib.pyplot as plt
+
+prompt = "A photo of a chair in a living room."
 
 # run both experts
 image = base(
@@ -95,20 +100,18 @@ image = refiner(
     image=image,
 ).images[0]
 
+plt.imshow(image)
+plt.show()
+
 # COMMAND ----------
 
-image
+# MAGIC %md Free some memory:
 
 # COMMAND ----------
 
 import gc
 
-# delete the base and refiner, and free up some memory
+# delete the base and the refiner models and free up some memory
 del base, refiner
 gc.collect()
 torch.cuda.empty_cache()
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
-

@@ -1,17 +1,5 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC ## Setup
-
-# COMMAND ----------
-
-# Install dependencies.
-%pip install bitsandbytes transformers accelerate --quiet
-%pip install huggingface_hub --upgrade --quiet
-%pip install git+https://github.com/microsoft/DeepSpeed --quiet
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## Use default images
 
 # COMMAND ----------
@@ -37,12 +25,13 @@
 
 from huggingface_hub import snapshot_download
 
-# Make sure this directory exists. If not run: %sh mkdir /dbfs/tmp/sdxl/default_images/
-local_dir_default = "/dbfs/tmp/sdxl/default_images/"
+# Make sure the Volumes exists. 
+spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.default.default")
+local_dir_default = "/Volumes/sdxl/default"
 
 snapshot_download(
     "diffusers/dog-example",
-    local_dir=local_dir_default, 
+    local_dir=f"{local_dir_default}/default", 
     repo_type="dataset",
     ignore_patterns=".gitattributes",
 )
@@ -71,9 +60,8 @@ def image_grid(imgs, rows, cols, resize=256):
 import glob
 
 # change path to display images from your local dir
-img_paths = f"{local_dir_default}*.jpeg"
+img_paths = f"{local_dir_default}/default/*.jpeg"
 imgs = [Image.open(path) for path in glob.glob(img_paths)]
-
 num_imgs_to_preview = 5
 image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
@@ -92,14 +80,14 @@ import torch
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # load the processor and the captioning model
-blip_processor = AutoProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base",torch_dtype=torch.float16).to(device)
+blip_processor = AutoProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large", 
+                                                          torch_dtype=torch.float16).to(device)
 
 # captioning utility
 def caption_images(input_image):
     inputs = blip_processor(images=input_image, return_tensors="pt").to(device, torch.float16)
     pixel_values = inputs.pixel_values
-
     generated_ids = blip_model.generate(pixel_values=pixel_values, max_length=50)
     generated_caption = blip_processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
     return generated_caption
@@ -107,7 +95,7 @@ def caption_images(input_image):
 # COMMAND ----------
 
 # create a list of (Pil.Image, path) pairs
-imgs_and_paths = [(path,Image.open(path)) for path in glob.glob(f"{local_dir_default}*.jpeg")]
+imgs_and_paths = [(path, Image.open(path)) for path in glob.glob(f"{local_dir_default}/default/*.jpeg")]
 
 # COMMAND ----------
 
@@ -125,7 +113,7 @@ imgs_and_paths = [(path,Image.open(path)) for path in glob.glob(f"{local_dir_def
 import json
 
 captions = []
-caption_prefix = "a photo of corgi dog, " #@param
+caption_prefix = "a photo of TOK dog, " #@param
 for img in imgs_and_paths:
     caption = caption_prefix + caption_images(img[1]).split("\n")[0]
     captions.append(caption)
@@ -137,9 +125,9 @@ d = {
     "image": [imgs[0] for imgs in imgs_and_paths],
     "caption": [caption for caption in captions],
 }
-
 dataset = Dataset.from_dict(d).cast_column("image", Image())
-dataset.save_to_disk('/dbfs/tmp/sdxl/default_data')
+spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.default.dataset")
+dataset.save_to_disk(f"{local_dir_default}/dataset")
 
 # COMMAND ----------
 
@@ -148,16 +136,21 @@ dataset.save_to_disk('/dbfs/tmp/sdxl/default_data')
 
 # COMMAND ----------
 
-local_dir = "/dbfs/tmp/sdxl/images/"
+# MAGIC %md Make sure you have uploaded your training images in the Volumes.
 
 # COMMAND ----------
 
+theme = "chair"
+local_dir = f"/Volumes/sdxl/{theme}"
+
+# COMMAND ----------
+
+import glob
 from PIL import Image
 
 # change path to display images from your local dir
-img_paths = f"{local_dir}*/*.jpg"
+img_paths = f"{local_dir}/*/*.jpg"
 imgs = [Image.open(path) for path in glob.glob(img_paths)]
-
 num_imgs_to_preview = 25
 image_grid(imgs[:num_imgs_to_preview], 5, 5)
 
@@ -167,18 +160,18 @@ import glob
 from PIL import Image
 
 # create a list of (Pil.Image, path) pairs
-imgs_and_paths = [(path,Image.open(path)) for path in glob.glob(f"{local_dir}*/*.jpg")]
+imgs_and_paths = [(path, Image.open(path).rotate(-90)) for path in glob.glob(f"{local_dir}/*/*.jpg")]
 
 # COMMAND ----------
 
 import json
-
 captions = []
 for img in imgs_and_paths:
-    instance_class = img[0].split("/")[5].replace("_", " ")
-    caption_prefix = f"a photo of {instance_class} cat: "
+    instance_class = img[0].split("/")[4].replace("_", " ")
+    caption_prefix = f"a photo of {instance_class} {theme}: "
     caption = caption_prefix + caption_images(img[1]).split("\n")[0]
     captions.append(caption)
+captions[0]
 
 # COMMAND ----------
 
@@ -189,7 +182,7 @@ d = {
 }
 
 dataset = Dataset.from_dict(d).cast_column("image", Image())
-dataset.save_to_disk('/dbfs/tmp/sdxl/data')
+dataset.save_to_disk(f'/Volumes/sdxl/{theme}/dataset')
 
 # COMMAND ----------
 
