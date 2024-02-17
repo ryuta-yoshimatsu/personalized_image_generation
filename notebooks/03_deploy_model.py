@@ -1,5 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC This solution accelerator notebook is available at https://github.com/databricks-industry-solutions.
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC
 # MAGIC # Create a model serving endpoint with Python
 # MAGIC
@@ -17,10 +22,8 @@
 import mlflow
 mlflow.set_registry_uri('databricks-uc')
 client = mlflow.tracking.MlflowClient()
-
 catalog = "sdxl"
 schema = "log"
-
 theme = "chair"
 model_name = f"sdxl.model.sdxl-fine-tuned-{theme}" #an existing model in model registry, may have multiple versions
 model_serving_endpoint_name = f"sdxl-fine-tuned-{theme}"
@@ -213,14 +216,11 @@ def generate_image(dataset, url=endpoint_url, databricks_token=token):
 
 # COMMAND ----------
 
-#['bglct', 'mncct', 'rgdct', 'rsbct', 'smct']
-#['bcnchr', 'emslng', 'hsmnchr', 'mtlchr', 'rckchr']
-
-#prompt = pd.DataFrame({"prompt":["a photo of bglct cat in a livig room"], "num_inference_steps": 25})
-prompt = pd.DataFrame({"prompt":["A photo of yellow bcnchr chair in a living room"], "num_inference_steps": 25})
-
+#['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
+prompt = pd.DataFrame({"prompt":["A photo of orange bcnchr chair"], "num_inference_steps": 25})
 t = generate_image(prompt)
 plt.imshow(t['predictions'])
+plt.axis('off')
 plt.show()
 
 # COMMAND ----------
