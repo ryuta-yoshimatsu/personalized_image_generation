@@ -1,41 +1,25 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC This solution accelerator notebook is available at https://github.com/databricks-industry-solutions.
+
+# COMMAND ----------
+
+# MAGIC %run ./util
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Fine tune Stable Diffusion XL with DreamBooth and LoRA
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Train
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC #### Set Hyperparameters
-# MAGIC To ensure we can DreamBooth with LoRA on a heavy pipeline like Stable Diffusion XL, we're using:
+# MAGIC To ensure we can use DreamBooth with LoRA on a heavy pipeline like Stable Diffusion XL, we're using:
 # MAGIC
 # MAGIC * Gradient checkpointing (`--gradient_accumulation_steps`)
 # MAGIC * 8-bit Adam (`--use_8bit_adam`)
 # MAGIC * Mixed-precision training (`--mixed-precision="fp16"`)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Launch training
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC To allow for custom captions we need to install the `datasets` library, you can skip that if you want to train solely
-# MAGIC  with `--instance_prompt`.
-# MAGIC In that case, specify `--instance_data_dir` instead of `--dataset_name`
-
-# COMMAND ----------
-
-# MAGIC %sh /databricks/python/bin/python -m pip install -r ../requirements.txt --quiet
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -66,8 +50,8 @@ notebook.start("--logdir {} --reload_multifile True".format(logdir))
 
 # COMMAND ----------
 
-root_dir = "/Volumes/sdxl"
 theme = "chair"
+root_dir = "/Volumes/sdxl"
 os.environ['DATASET_NAME'] = f"{root_dir}/{theme}/dataset"
 os.environ['OUTPUT_DIR'] = f"{root_dir}/{theme}/adaptor"
 os.environ['LOGDIR'] = logdir
@@ -108,16 +92,10 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
 
 # COMMAND ----------
 
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
-import torch
 from diffusers import DiffusionPipeline, AutoencoderKL
 
-root_dir = "/Volumes/sdxl"
 theme = "chair"
-
+root_dir = "/Volumes/sdxl"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
 pipe = DiffusionPipeline.from_pretrained(
@@ -132,31 +110,15 @@ pipe = pipe.to(device)
 
 # COMMAND ----------
 
-from PIL import Image
-def image_grid(imgs, rows, cols, resize=256):
-    if resize is not None:
-        imgs = [img.resize((resize, resize)) for img in imgs]
-    w, h = imgs[0].size
-    grid = Image.new("RGB", size=(cols * w, rows * h))
-    grid_w, grid_h = grid.size
-
-    for i, img in enumerate(imgs):
-        grid.paste(img, box=(i % cols * w, i // cols * h))
-    return grid
-
-# COMMAND ----------
-
 import glob
 
-#types = ['bglct', 'mncct', 'rgdct', 'rsbct', 'smct']
-types = ['bcnchr', 'cbchr', 'emslng', 'hsmnchr', 'rckchr']
+types = ['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
 
 num_imgs_to_preview = len(types)
 imgs = []
 for type in types:
-  #imgs.append(pipe(prompt=f"A photo of {type} cat on a tree", num_inference_steps=25).images[0])
   imgs.append(pipe(prompt=f"A photo of red {type} chair in a living room", num_inference_steps=25).images[0])
-image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
+show_image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
 # COMMAND ----------
 
@@ -165,14 +127,11 @@ image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
 # COMMAND ----------
 
-import pandas as pd
-import numpy as np
 import transformers
 import mlflow
 import torch
 import accelerate
 import diffusers
-
 
 class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
     def __init__(self, vae_name, model_name):
@@ -214,7 +173,7 @@ class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
 
 # COMMAND ----------
 
-theme = "chair" # "cat", "chair"
+theme = "chair"
 root_dir = "/Volumes/sdxl"
 vae_name = "madebyollin/sdxl-vae-fp16-fix"
 model_name = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -259,7 +218,11 @@ with mlflow.start_run() as run:
 
 # COMMAND ----------
 
-# Register model
+# MAGIC %md
+# MAGIC ## Register the model to Unity Catalog
+
+# COMMAND ----------
+
 registered_name = f"sdxl.model.sdxl-fine-tuned-{theme}"
 result = mlflow.register_model(
     "runs:/" + run.info.run_id + "/model",
@@ -270,13 +233,9 @@ result = mlflow.register_model(
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Load the registered model and make inference
+# MAGIC ## Load the registered model back to make inference
 # MAGIC
 # MAGIC Restart the Python to release the GPU memory occupied in Training.
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -297,7 +256,7 @@ import pandas as pd
 mlflow.set_registry_uri('databricks-uc')
 mlflow_client = MlflowClient()
 
-theme = "chair" # "cat", "chair"
+theme = "chair"
 registered_name = f"sdxl.model.sdxl-fine-tuned-{theme}"
 model_version = get_latest_model_version(mlflow_client, registered_name)
 logged_model = f"models:/{registered_name}/{model_version}"
@@ -307,18 +266,10 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 
 # COMMAND ----------
 
-# Predict on a Pandas DataFrame.
-import matplotlib.pyplot as plt
-
-#['bcnchr', 'cbchr', 'emslng', 'hsmnchr', 'rckchr']
-#['bglct', 'mncct', 'rgdct', 'rsbct', 'smct']
-
+#['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
 input_example = pd.DataFrame({"prompt":["A photo of blue emslng chair in a living room"], "num_inference_steps":[25]})
-#input_example = pd.DataFrame({"prompt":["A photo of mncct cat on a tree"], "num_inference_steps":[25]})
-
 image = loaded_model.predict(input_example)
-plt.imshow(image)
-plt.show()
+show_image(image)
 
 # COMMAND ----------
 
