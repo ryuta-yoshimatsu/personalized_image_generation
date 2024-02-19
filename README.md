@@ -31,4 +31,4 @@ The final notebook, 03_deploymet, takes the model registered in Unity Catalog an
 
 To get started, simply clone this repository to your Databricks Repos and run the notebooks in the right sequence. For the compute, we recommend a single node cluster with multiple A10 or A100 GPU instances. In order to use your own images for fine tuning, follow the instructions in the notebook, 01_preprocessing. 
 
-Note that DreamBooth is sensitive to hyperparameters, and it is known to easily overfit. For detailed description of the limitations and how to deal with them, read the original  paper and this blog post. 
+Note that DreamBooth is sensitive to hyperparameters, and it is known to easily overfit. For detailed description of the limitations and how to deal with them, read the original [paper](https://arxiv.org/abs/2208.12242) and this [blog post](https://huggingface.co/blog/dreambooth). 
