@@ -2,6 +2,7 @@
 # MAGIC %md
 # MAGIC This solution accelerator notebook is available at https://github.com/databricks-industry-solutions.
 
+
 # COMMAND ----------
 
 # MAGIC %run ./util
@@ -13,16 +14,22 @@
 # MAGIC Load BLIP to auto caption images:
 
 # COMMAND ----------
+import glob
+import pandas as pd
+import PIL
+import torch
+from transformers import AutoProcessor, BlipForConditionalGeneration
+
+# COMMAND ----------
 
 # load the processor and the captioning model
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-blip_processor = AutoProcessor.from_pretrained(
-    "Salesforce/blip-image-captioning-large")
+blip_processor = AutoProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
 
 blip_model = BlipForConditionalGeneration.from_pretrained(
-    "Salesforce/blip-image-captioning-large", 
-    torch_dtype=torch.float16).to(device)
+    "Salesforce/blip-image-captioning-large", torch_dtype=torch.float16
+).to(device)
 
 # COMMAND ----------
 
@@ -61,16 +68,23 @@ show_image_grid(imgs[:num_imgs_to_preview], 5, 5)
 # COMMAND ----------
 
 # create a list of (Pil.Image, path) pairs
-imgs_and_paths = [(path, PIL.Image.open(path).rotate(-90)) for path in glob.glob(f"{local_dir}/*/*.jpg")]
+imgs_and_paths = [
+    (path, PIL.Image.open(path).rotate(-90))
+    for path in glob.glob(f"{local_dir}/*/*.jpg")
+]
 
 # COMMAND ----------
 
 import json
+
 captions = []
 for img in imgs_and_paths:
     instance_class = img[0].split("/")[4].replace("_", " ")
     caption_prefix = f"a photo of {instance_class} {theme}: "
-    caption = caption_prefix + caption_images(img[1], blip_processor, blip_model, device).split("\n")[0]
+    caption = (
+        caption_prefix
+        + caption_images(img[1], blip_processor, blip_model, device).split("\n")[0]
+    )
     captions.append(caption)
 
 # COMMAND ----------
@@ -80,13 +94,12 @@ display(pd.DataFrame(captions).rename(columns={0: "caption"}))
 # COMMAND ----------
 
 from datasets import Dataset, Image
+
 d = {
     "image": [imgs[0] for imgs in imgs_and_paths],
     "caption": [caption for caption in captions],
 }
 dataset = Dataset.from_dict(d).cast_column("image", Image())
-dataset.save_to_disk(f'/Volumes/sdxl/{theme}/dataset')
+dataset.save_to_disk(f"/Volumes/sdxl/{theme}/dataset")
 
 # COMMAND ----------
-
-
