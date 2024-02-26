@@ -1,17 +1,21 @@
+<img src='https://github.com/databricks-industry-solutions/.github/raw/main/profile/solacc_logo_wide.png' width="1000" ></img>
+
 # Building Personalized Image Generation Model
-Recent advancements in large text-to-image models have shown unparalleled capabilities, enabling high-quality and diverse generation of images based on natural language prompts or existing images. Today, design professionals across various industries are harnessing these models to generate images that serve as inspiration for their next product designs. With further refinement, the generated images may even be used as initial prototypes.
+Recent advancements in large text-to-image models have shown unparalleled capabilities, enabling high-quality generation of images in diverse contexts based on natural language prompts or existing images. Today, design professionals across various industries are harnessing these models to generate images that serve as inspiration for their next product designs. With or without further refinement, the generated images may even be used as initial prototypes.
 
-Customization is often necessary for these models. Like any other generative models, tailoring the content is crucial for building a successful application. However, pre-trained text-to-image models frequently lack the capacity to generate specific subjects accurately across various contexts. Thus, fine-tuning the models on images of specific subjects while preserving syntactic and semantic knowledge becomes essential.
+Like any other generative models, tailoring the output content is crucial for building a successful application. For example, fashion designers may want to generate images of an item reflecting a style of a specific collection. Furniture designers may want to see famous designer chairs made from different materials or in different colors. Customization is necessary for such use cases. However, pre-trained text-to-image models available today often lack the capacity to accurately generate specific subjects in various contexts. Thus, fine-tuning the models on the  specific subject images becomes essential.
 
-The objective of this project is to provide Databricks users with a tool to expedite the development of personalized image generation models. We demonstrate how to fine-tune a text-to-image diffusion model for generation of personalized images in a scalable way. Specifically, we use DreamBooth to fine-tune Stable Diffusion XL using a set of sample images featuring designer chairs.
+This solution accelerator provides users with a tool to expedite the end-to-end development of personalized image generation models. The asset including a series of notebooks demonstrates how to preprocess subject images, how to fine-tune a text-to-image diffusion model, how to manage the fine-tuned model, and how to make that model available for downstream applications by deploying it behind a real-time endpoint. The solution is by design customizable (bring your own images) and scalable leveraging the powerful distributed compute infrastructure of Databricks.
+
+The solution specifically uses DreamBooth to fine-tune Stable Diffusion XL using sample images featuring designer chairs.
 
 
 ## Why Stable Diffusion XL?
-[Stable Diffusion XL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/) is one of the most powerful open-source text-to-image models available for commercial usage today (as of 2024-03-01). Developed by Stability AI, its weights are publicly accessible via Hugging Face, which has native support on Databricks. Both the off-the-shelf and the fine-tuned versions of the model are widely adopted by numerous companies and are utilized for their mission-critical applications.
+[Stable Diffusion XL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/) is a powerful open-source text-to-image model available for commercial usage. Developed by Stability AI, its weights are publicly accessible via Hugging Face, which has native support on Databricks. Both the off-the-shelf and the fine-tuned versions of the model are widely adopted by companies and are utilized for their mission-critical applications.
 
 
 ## Why DreamBooth?
-[Dreambooth](https://dreambooth.github.io/) is an innovative technique developed by researchers from Google Research and Boston University. It enables fine-tuning of text-to-image models using only a few images depicting a particular subject or style. Following fine-tuning, the models gain the ability to generate images of the subject or style in diverse contexts. DreamBooth is seamlessly integrated into Hugging Face’s Diffusers library, with its training scripts readily accessible to the public.
+[Dreambooth](https://dreambooth.github.io/) is an innovative technique developed by researchers from Google Research and Boston University that enables fine-tuning of text-to-image models using only a few images depicting a particular subject or style. Following fine-tuning, the models acquire the ability to generate images of the subject/s in diverse contexts. DreamBooth is seamlessly integrated into Hugging Face’s Diffusers library, with its training scripts readily available to the public.
 
 
 ## Why Databricks Mosaic AI?
@@ -21,13 +25,13 @@ The objective of this project is to provide Databricks users with a tool to expe
 ## Getting Started
 This project is structured in 4 notebooks.  
 
-The first notebook, 00_introduction, walks you through how to download Stable Diffusion XL from Hugging Face and generate an image conditioned on a simple prompt. This notebook is aimed to demonstrate how easy it is to use an open source image generation model off-the-shelf on Databricks. 
+The first notebook, [00_introduction](https://github.com/ryuta-yoshimatsu/personalized_image_generation/blob/main/notebooks/00_introduction.py), walks you through how to download Stable Diffusion XL from Hugging Face and generate an image conditioned on a simple prompt. This notebook is aimed to demonstrate how easy it is to use an open source image generation model off-the-shelf on Databricks. 
 
-The second notebook,  01_preprocessing, downloads a sample training dataset consisting of 25 images of designer chairs from a public repository and applies preprocessing. The main step performed here is to annotate each image with a unique token referring to the subject and a context. We use Unity Catalog Volumes to manage the preprocessed and post-processed images. 
+The second notebook,  [01_data_prep](https://github.com/ryuta-yoshimatsu/personalized_image_generation/blob/main/notebooks/01_data_prep.py), downloads a sample training dataset consisting of 25 images of designer chairs from a public repository and applies preprocessing. The main step performed here is to annotate each image with a unique token referring to the subject and a context. We use Unity Catalog Volumes to manage the preprocessed and post-processed images. 
 
-The third notebook, 02_finetuning, shows how to fine-tune Stable Diffusion XL using DreamBooth. Here, we combine with the techniques like mixed precision and LoRA to make the training efficient and to reduce the memory footprint. The second part of the notebook takes the fine-tuned model and registers it to Unity Catalog using MLflow. 
+The third notebook, [02_fine_tuning](https://github.com/ryuta-yoshimatsu/personalized_image_generation/blob/main/notebooks/02_fine_tuning.py), shows how to fine-tune Stable Diffusion XL using DreamBooth. Here, we combine with the techniques like mixed precision and LoRA to make the training efficient and to reduce the memory footprint. The second part of the notebook takes the fine-tuned model and registers it to Unity Catalog using MLflow. 
  
-The final notebook, 03_deploymet, takes the model registered in Unity Catalog and deploys it behind Databricks Mosaic AI Model Serving endpoint. This allows end users to send an image generation request and get the results back in real time via Rest API.  
+The final notebook, [03_deploy_model](https://github.com/ryuta-yoshimatsu/personalized_image_generation/blob/main/notebooks/03_deploy_model.py), takes the model registered in Unity Catalog and deploys it behind Databricks Mosaic AI Model Serving endpoint. This allows end users to send an image generation request and get the results back in real time via Rest API.  
 
 To get started, simply clone this repository to your Databricks Repos and run the notebooks in the right sequence. For the compute, we recommend a single node cluster with multiple A10 or A100 GPU instances. In order to use your own images for fine tuning, follow the instructions in the notebook, 01_preprocessing. 
 
