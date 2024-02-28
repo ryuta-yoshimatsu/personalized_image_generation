@@ -84,6 +84,14 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
 # MAGIC %sh ls -ltr $OUTPUT_DIR
 
 # COMMAND ----------
@@ -111,6 +119,10 @@ pipe = DiffusionPipeline.from_pretrained(
 )
 pipe.load_lora_weights(f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors")
 pipe = pipe.to(device)
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -191,6 +203,8 @@ output = f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors"
 
 # COMMAND ----------
 
+import numpy as np
+import pandas as pd
 import mlflow
 from mlflow.models.signature import ModelSignature
 from mlflow.types import DataType, Schema, ColSpec, TensorSpec
@@ -283,7 +297,7 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 # ['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
 input_example = pd.DataFrame(
     {
-        "prompt": ["A photo of blue emslng chair in a living room"],
+        "prompt": ["A photo of green wdnchr chair in a living room"],
         "num_inference_steps": [25],
     }
 )
@@ -295,3 +309,5 @@ show_image(image)
 mlflow_client.set_registered_model_alias(registered_name, "champion", model_version)
 
 # COMMAND ----------
+
+
