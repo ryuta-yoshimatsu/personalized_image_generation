@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC This solution accelerator notebook is available at https://github.com/databricks-industry-solutions.
-
+# MAGIC
 
 # COMMAND ----------
 
@@ -10,67 +10,99 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Generate custom captions with BLIP
-# MAGIC Load BLIP to auto caption images:
+# MAGIC #Fine-tune on your own images
+# MAGIC Like any other generative models, tailoring the output is crucial for building a successful application. This is not an exception with image generation models. For example, a furniture designer wants to see their previous designs reflected on the generated images, but with a slight touch of modification in materials or colors. Customization of the model is necessary in a case like this. You can do this by bringing in your own images.
 
 # COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Manages your image files using Unity Catalog Volumes
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC This example uses the 25 training images stored in the subfolders of ```/images/chair/```. We copy the images to Unity Catalog (UC) and managed them as volume files. To adapt this solution to your use case, you can directly upload your images in UC Volumes.
+
+# COMMAND ----------
+
+theme = "chair"
+catalog = "sdxl_image_gen" # Name of the catalog you want to use to manage your assets (e.g. images) 
+volumes_dir = f"/Volumes/{catalog}/{theme}" # Path to the directories in UC Volumes
+
+# COMMAND ----------
+
+# MAGIC %sql CREATE CATALOG IF NOT EXISTS sdxl_image_gen
+
+# COMMAND ----------
+
+# MAGIC %sql CREATE SCHEMA IF NOT EXISTS sdxl_image_gen.chair
+
+# COMMAND ----------
+
+import os
+import subprocess
+
+# Create volumes under the schma, and copy the training images into it 
+for volume in os.listdir("../images/chair"):
+  volume_name = f"{catalog}.{theme}.{volume}"
+  spark.sql(f"CREATE VOLUME IF NOT EXISTS {volume_name}")
+  command = f"cp ../images/chair/{volume}/*.jpg /Volumes/{catalog}/{theme}/{volume}/"
+  process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+  output, error = process.communicate()
+  if error:
+    print('Output: ', output)
+    print('Error: ', error)
+
+# COMMAND ----------
+
 import glob
+
+# Display images in Volumes
+img_paths = f"{volumes_dir}/*/*.jpg"
+imgs = [PIL.Image.open(path) for path in glob.glob(img_paths)]
+num_imgs_to_preview = 25
+show_image_grid(imgs[:num_imgs_to_preview], 5, 5) # Custom function defined in util notebook
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Annotate your images with a unique token
+# MAGIC We need to provide a caption for each of the images associated with a given style of chair. An important thing here is to provide a unique token for each style of chair and use it in the captions: e.g. “A photo of a BCNCHR chair”. The uniqueness of the token is important for preserving syntactic and semantic knowledge, which the base model brings be defaul. The idea of fine-tuning is not to mess up with what the model knows already, and to encode a new token and link that with the subject image. Read more about this [here](https://dreambooth.github.io/).
+# MAGIC
+# MAGIC We will add the token identifier (e.g. bcnchr) to each caption using a caption prefix. Feel free to change the prefix according to the theme you're training on.
+# MAGIC
+# MAGIC - For this example, we use "a photo of TOKEN," other options include:
+# MAGIC     - For styles - "in the style of TOKEN"
+# MAGIC     - For faces - "photo of a TOKEN person"
+# MAGIC - You can add additional identifiers to the prefix that can help steer the model in the right direction.
+# MAGIC -- e.g. for this example, instead of "a photo of a TOKEN" we can use "a photo of a TOKEN chair" / "a photo of a TOKEN designer chair"
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Automate the generation of custom captions with BLIP
+# MAGIC When you have too many training images, automating the caption generation using a model like BLIP is an option. 
+
+# COMMAND ----------
+
 import pandas as pd
 import PIL
 import torch
 from transformers import AutoProcessor, BlipForConditionalGeneration
 
-# COMMAND ----------
-
 # load the processor and the captioning model
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
 blip_processor = AutoProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
-
 blip_model = BlipForConditionalGeneration.from_pretrained(
     "Salesforce/blip-image-captioning-large", torch_dtype=torch.float16
 ).to(device)
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC Now let's add the concept token identifier (e.g. TOK) to each caption using a caption prefix.
-# MAGIC Feel free to change the prefix according to the concept you're training on!
-# MAGIC - for this example we can use "a photo of TOK," other options include:
-# MAGIC     - For styles - "In the style of TOK"
-# MAGIC     - For faces - "photo of a TOK person"
-# MAGIC - You can add additional identifiers to the prefix that can help steer the model in the right direction.
-# MAGIC -- e.g. for this example, instead of "a photo of TOK" we can use "a photo of TOK dog" / "a photo of TOK corgi dog"
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##Use your own images
-
-# COMMAND ----------
-
-# MAGIC %md Make sure you have uploaded your training images in the Volumes.
-
-# COMMAND ----------
-
-theme = "chair"
-local_dir = f"/Volumes/sdxl/{theme}"
-
-# COMMAND ----------
-
-# change path to display images from your local dir
-img_paths = f"{local_dir}/*/*.jpg"
-imgs = [PIL.Image.open(path) for path in glob.glob(img_paths)]
-num_imgs_to_preview = 25
-
-show_image_grid(imgs[:num_imgs_to_preview], 5, 5)
-
-# COMMAND ----------
-
 # create a list of (Pil.Image, path) pairs
 imgs_and_paths = [
     (path, PIL.Image.open(path).rotate(-90))
-    for path in glob.glob(f"{local_dir}/*/*.jpg")
+    for path in glob.glob(f"{volumes_dir}/*/*.jpg")
 ]
 
 # COMMAND ----------
@@ -80,7 +112,7 @@ import json
 captions = []
 for img in imgs_and_paths:
     instance_class = img[0].split("/")[4].replace("_", " ")
-    caption_prefix = f"a photo of {instance_class} {theme}: "
+    caption_prefix = f"a photo of a {instance_class} {theme}: "
     caption = (
         caption_prefix
         + caption_images(img[1], blip_processor, blip_model, device).split("\n")[0]
@@ -89,7 +121,13 @@ for img in imgs_and_paths:
 
 # COMMAND ----------
 
+# Show the captions generated by BLIP
 display(pd.DataFrame(captions).rename(columns={0: "caption"}))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC We create a Hugging Face Dataset object and store it in Unity Catalog Volume.
 
 # COMMAND ----------
 
@@ -100,6 +138,9 @@ d = {
     "caption": [caption for caption in captions],
 }
 dataset = Dataset.from_dict(d).cast_column("image", Image())
-dataset.save_to_disk(f"/Volumes/sdxl/{theme}/dataset")
+spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.dataset")
+dataset.save_to_disk(f"/Volumes/{catalog}/{theme}/dataset")
 
 # COMMAND ----------
+
+

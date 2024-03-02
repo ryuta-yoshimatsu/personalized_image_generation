@@ -8,17 +8,9 @@
 # MAGIC <img src='https://github.com/databricks-industry-solutions/.github/raw/main/profile/solacc_logo_wide.png' width="1000" ></img>
 # MAGIC
 # MAGIC # Building Personalized Image Generation Model
+# MAGIC Recent advancements in large text-to-image models have shown unparalleled capabilities, enabling high-quality generation of images in diverse contexts based on natural language prompts or existing images. Today, design professionals across various industries are harnessing these models to generate images that serve as inspiration for their next product designs. With or without further refinement, the generated images may even be used as initial prototypes.
 # MAGIC
-# MAGIC
-# MAGIC
-# MAGIC ## Why Stable Diffusion XL?
-# MAGIC [Stable Diffusion XL Base](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)
-# MAGIC
-# MAGIC ## Why Dreambooth?
-# MAGIC [Dreambooth](https://dreambooth.github.io/)
-# MAGIC
-# MAGIC ## Why Databricks Mosaic AI?
-# MAGIC [Databricks Mosaic AI](https://www.databricks.com/product/machine-learning) offers a great option for GenAI project development and management. It provides a scalable unified platform scoping Data and AI. Data needed to train models is readily available via [Unity Catalog Volumes](https://www.databricks.com/product/unity-catalog) and GenAI models can be easily managed and deployed using [MLflow](https://www.databricks.com/product/managed-mlflow).
+# MAGIC This solution accelerator provides Databricks users with a tool to expedite the end-to-end development of personalized image generation applications. The asset including a series of notebooks demonstrates how to preprocess training images, fine-tune a text-to-image diffusion model, manage the fine-tuned model, and deploy the model behind an endpoint and make it available for downstream applications. The solution is by design customizable (bring your own images) and scalable leveraging Databricks powerful distributed compute.
 
 # COMMAND ----------
 
@@ -47,7 +39,7 @@ pipe.to(device)
 
 # COMMAND ----------
 
-prompt = "A photo of a chair in a living room."
+prompt = "A photo of a brown leather chair in a living room."
 image = pipe(prompt=prompt).images[0]
 show_image(image)
 
@@ -61,5 +53,3 @@ show_image(image)
 # MAGIC | hugging face | | |
 # MAGIC | stable diffusion xl base | | |
 # MAGIC | dreambooth | | |
-
-# COMMAND ----------

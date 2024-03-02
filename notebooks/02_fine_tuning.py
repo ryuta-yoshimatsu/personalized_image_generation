@@ -9,17 +9,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Fine tune Stable Diffusion XL with DreamBooth and LoRA
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### Set Hyperparameters
-# MAGIC To ensure we can use DreamBooth with LoRA on a heavy pipeline like Stable Diffusion XL, we're using:
-# MAGIC
-# MAGIC * Gradient checkpointing (`--gradient_accumulation_steps`)
-# MAGIC * 8-bit Adam (`--use_8bit_adam`)
-# MAGIC * Mixed-precision training (`--mixed-precision="fp16"`)
+# MAGIC ## Fine-tune Stable Diffusion XL with DreamBooth and LoRA
 
 # COMMAND ----------
 
@@ -27,11 +17,9 @@
 # MAGIC
 # MAGIC ### Set up TensorBoard
 # MAGIC
-# MAGIC TensorBoard allows you to visualize model training performance and to quickly see what changes work without waiting for the entire run to complete.
+# MAGIC TensorBoard allows you to visualize model training and lets you monitor if the training is going well.
 # MAGIC
-# MAGIC TensorBoard reads the event log and shows that in (near) real time on the dashboard. But if you're writing out the event log to DBFS, it won't show it until the file is closed for writing. The file will appear once the training is complete and the TensorBoard dashboard won't be updated until the training completes. This obviously is not good if you want to track the training in real time. In this case, we suggest you to write the event log to a directory on the driver node (instead of DBFS) and run your TensorBoard there. Files stored on the driver node may get removed when the cluster terminates or restarts. But when you are running the training on Databricks notebook, MLflow will automatically log your Tensorboard artifacts, and you will be able to recover them later. You can find the example of this below. </span>
-# MAGIC
-# MAGIC ***Change*** l.832 in train_dreambooth_lora_sdxl.py from ```logging_dir = Path(args.output_dir, args.logging_dir)``` to ```logging_dir = Path(args.logging_dir)```. Otherwise the tensorboard logs will be written to dbfs location specified as output_dir.
+# MAGIC TensorBoard reads the event log file and exposes it in near real time on the dashboard. But if you're writing out the event log to DBFS, it won't show until the file is closed for writing, which is when the training is complete. This is not good for a real time monitoring purpose. In this case, we suggest to write the event log to the driver node (instead of DBFS) and run your TensorBoard there. Files stored on the driver node may get removed when the cluster terminates or restarts. But when you are running the training on Databricks notebook, MLflow will automatically log your Tensorboard artifacts, and you will be able to recover them later. You can find the example of this below.
 
 # COMMAND ----------
 
@@ -43,20 +31,29 @@ notebook.start("--logdir {} --reload_multifile True".format(logdir))
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC  - Use `--output_dir` to specify your LoRA model repository name!
-# MAGIC  - Use `--caption_column` to specify name of the caption column in your dataset. In this example we used "prompt" to
-# MAGIC  save our captions in the
-# MAGIC  metadata file, change this according to your needs.
+theme = "chair"
+catalog = "sdxl_image_gen"
+volumes_dir = "/Volumes/sdxl_image_gen"
+os.environ["DATASET_NAME"] = f"{volumes_dir}/{theme}/dataset"
+os.environ["OUTPUT_DIR"] = f"{volumes_dir}/{theme}/adaptor"
+os.environ["LOGDIR"] = logdir
+spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.adaptor")
 
 # COMMAND ----------
 
-theme = "chair"
-root_dir = "/Volumes/sdxl"
-os.environ["DATASET_NAME"] = f"{root_dir}/{theme}/dataset"
-os.environ["OUTPUT_DIR"] = f"{root_dir}/{theme}/adaptor"
-os.environ["LOGDIR"] = logdir
-spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
+# MAGIC %md
+# MAGIC #### Set Parameters
+# MAGIC To ensure we can use DreamBooth with LoRA on a heavy pipeline like Stable Diffusion XL, we're using the following hyperparameters:
+# MAGIC
+# MAGIC * Gradient checkpointing (`--gradient_accumulation_steps`)
+# MAGIC * 8-bit Adam (`--use_8bit_adam`)
+# MAGIC * Mixed-precision training (`--mixed-precision="fp16"`)
+# MAGIC * Some other parameters are defined in `yamls/accelerate/zero2.yaml`
+# MAGIC <br>
+# MAGIC
+# MAGIC Other parameters:
+# MAGIC * Use `--output_dir` to specify your LoRA model repository name.
+# MAGIC * Use `--caption_column` to specify name of the caption column in your dataset.
 
 # COMMAND ----------
 
@@ -84,14 +81,6 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
 # MAGIC %sh ls -ltr $OUTPUT_DIR
 
 # COMMAND ----------
@@ -105,7 +94,8 @@ from diffusers import DiffusionPipeline, AutoencoderKL
 import torch
 
 theme = "chair"
-root_dir = "/Volumes/sdxl"
+catalog = "sdxl_image_gen"
+volumes_dir = "/Volumes/sdxl_image_gen"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vae = AutoencoderKL.from_pretrained(
     "madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16
@@ -117,25 +107,21 @@ pipe = DiffusionPipeline.from_pretrained(
     variant="fp16",
     use_safetensors=True,
 )
-pipe.load_lora_weights(f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors")
+pipe.load_lora_weights(f"{volumes_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors")
 pipe = pipe.to(device)
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
+import os
 import glob
 
-types = ["bcnchr", "emslng", "hsmnchr", "rckchr", "wdnchr"]
-
+types = os.listdir("../images/chair")
 num_imgs_to_preview = len(types)
 imgs = []
 for type in types:
     imgs.append(
         pipe(
-            prompt=f"A photo of red {type} chair in a living room",
+            prompt=f"A photo of a red {type} chair in a living room",
             num_inference_steps=25,
         ).images[0]
     )
@@ -150,8 +136,6 @@ show_image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
 import mlflow
 import torch
-
-
 
 class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
     def __init__(self, vae_name, model_name):
@@ -180,7 +164,7 @@ class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
 
     def predict(self, context, model_input):
         """
-        This method generates prediction for the given input.
+        This method generates output for the given input.
         """
         prompt = model_input["prompt"][0]
         num_inference_steps = model_input.get("num_inference_steps", [25])[0]
@@ -196,10 +180,11 @@ class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
 # COMMAND ----------
 
 theme = "chair"
-root_dir = "/Volumes/sdxl"
+catalog = "sdxl_image_gen"
+volumes_dir = "/Volumes/sdxl_image_gen"
 vae_name = "madebyollin/sdxl-vae-fp16-fix"
 model_name = "stabilityai/stable-diffusion-xl-base-1.0"
-output = f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors"
+output = f"{volumes_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors"
 
 # COMMAND ----------
 
@@ -221,7 +206,7 @@ signature = ModelSignature(inputs=input_schema, outputs=output_schema)
 
 # Define input example
 input_example = pd.DataFrame(
-    {"prompt": [f"A photo of {theme} in a living room"], "num_inference_steps": [25]}
+    {"prompt": [f"A photo of a {theme} in a living room"], "num_inference_steps": [25]}
 )
 
 # Log the model with its details such as artifacts, pip requirements and input example
@@ -240,7 +225,7 @@ with mlflow.start_run() as run:
         input_example=input_example,
         signature=signature,
     )
-    mlflow.set_tag("dataset", f"{root_dir}/{theme}/dataset")
+    mlflow.set_tag("dataset", f"{volumes_dir}/{theme}/dataset")
 
 # COMMAND ----------
 
@@ -249,11 +234,13 @@ with mlflow.start_run() as run:
 
 # COMMAND ----------
 
-registered_name = f"sdxl.model.sdxl-fine-tuned-{theme}"
+# Make sure that the schema for the model exist
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.model")
+# Register the model 
+registered_name = f"{catalog}.model.sdxl-fine-tuned-{theme}"
 result = mlflow.register_model(
     "runs:/" + run.info.run_id + "/model",
-    registered_name,
-    await_registration_for=1000,
+    registered_name
 )
 
 # COMMAND ----------
@@ -264,7 +251,6 @@ result = mlflow.register_model(
 # MAGIC Restart the Python to release the GPU memory occupied in Training.
 
 # COMMAND ----------
-
 
 def get_latest_model_version(mlflow_client, registered_name):
     latest_version = 1
@@ -285,7 +271,9 @@ mlflow.set_registry_uri("databricks-uc")
 mlflow_client = MlflowClient()
 
 theme = "chair"
-registered_name = f"sdxl.model.sdxl-fine-tuned-{theme}"
+catalog = "sdxl_image_gen"
+volumes_dir = "/Volumes/sdxl_image_gen"
+registered_name = f"{catalog}.model.sdxl-fine-tuned-{theme}"
 model_version = get_latest_model_version(mlflow_client, registered_name)
 logged_model = f"models:/{registered_name}/{model_version}"
 
@@ -294,10 +282,10 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 
 # COMMAND ----------
 
-# ['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
+# Use any of the following token to generate personalized images: 'bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr'
 input_example = pd.DataFrame(
     {
-        "prompt": ["A photo of green wdnchr chair in a living room"],
+        "prompt": ["A photo of a brown emslng chair in a living room"],
         "num_inference_steps": [25],
     }
 )
@@ -306,6 +294,7 @@ show_image(image)
 
 # COMMAND ----------
 
+# Assign an alias to the model
 mlflow_client.set_registered_model_alias(registered_name, "champion", model_version)
 
 # COMMAND ----------

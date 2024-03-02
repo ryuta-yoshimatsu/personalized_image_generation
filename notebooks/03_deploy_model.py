@@ -23,10 +23,10 @@ import mlflow
 
 mlflow.set_registry_uri("databricks-uc")
 client = mlflow.tracking.MlflowClient()
-catalog = "sdxl"
-schema = "log"
 theme = "chair"
-model_name = f"sdxl.model.sdxl-fine-tuned-{theme}"  # an existing model in model registry, may have multiple versions
+catalog = "sdxl_image_gen"
+log_schema = "log"
+model_name = f"{catalog}.model.sdxl-fine-tuned-{theme}"  # an existing model in model registry, may have multiple versions
 model_serving_endpoint_name = f"sdxl-fine-tuned-{theme}"
 
 # COMMAND ----------
@@ -84,11 +84,16 @@ my_json = {
         ],
         "auto_capture_config": {
             "catalog_name": catalog,
-            "schema_name": schema,
+            "schema_name": log_schema,
             "table_name_prefix": model_serving_endpoint_name,
         },
     },
 }
+
+# Make sure to the schema for the inference table exists
+spark.sql(
+    f"CREATE SCHEMA IF NOT EXISTS {catalog}.{log_schema}"
+)
 
 # Make sure to drop the inference table of it exists
 spark.sql(
@@ -157,7 +162,7 @@ def func_create_endpoint(model_serving_endpoint_name):
 
     assert (
         re.status_code == 200
-    ), f"Expected an HTTP 200 response, received {re.status_code}"
+    ), f"Expected an HTTP 200 response, received {re.status_code}. {re}"
 
 
 def func_delete_model_serving_endpoint(model_serving_endpoint_name):
@@ -188,7 +193,6 @@ func_create_endpoint(model_serving_endpoint_name)
 
 import time, mlflow
 
-
 def wait_for_endpoint():
     endpoint_url = f"https://{instance}/api/2.0/serving-endpoints"
     while True:
@@ -207,7 +211,6 @@ def wait_for_endpoint():
         else:
             print(f"Endpoint not ready ({status}), waiting 300 seconds")
             time.sleep(300)  # Wait 300 seconds
-
 
 api_url = mlflow.utils.databricks_utils.get_webapp_url()
 
@@ -236,8 +239,12 @@ token = (
     .getOrElse(None)
 )
 theme = "chair"
-model_name = f"sdxl.model.sdxl-fine-tuned-{theme}"  # an existing model in model registry, may have multiple versions
+catalog = "sdxl_image_gen"
+model_name = f"{catalog}.model.sdxl-fine-tuned-{theme}"  # an existing model in model registry, may have multiple versions
 model_serving_endpoint_name = f"sdxl-fine-tuned-{theme}"
+java_tags = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags()
+tags = sc._jvm.scala.collection.JavaConversions.mapAsJavaMap(java_tags)
+instance = tags["browserHostName"]
 
 # Replace URL with the end point invocation url you get from Model Seriving page.
 endpoint_url = (
@@ -246,7 +253,6 @@ endpoint_url = (
 token = (
     dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
 )
-
 
 def generate_image(dataset, url=endpoint_url, databricks_token=token):
     headers = {
@@ -262,12 +268,11 @@ def generate_image(dataset, url=endpoint_url, databricks_token=token):
         )
     return response.json()
 
-
 # COMMAND ----------
 
 # ['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
 prompt = pd.DataFrame(
-    {"prompt": ["A photo of orange bcnchr chair"], "num_inference_steps": 25}
+    {"prompt": ["A photo of an orange bcnchr chair"], "num_inference_steps": 25}
 )
 t = generate_image(prompt)
 plt.imshow(t["predictions"])
@@ -284,3 +289,5 @@ plt.show()
 func_delete_model_serving_endpoint(model_serving_endpoint_name)
 
 # COMMAND ----------
+
+
