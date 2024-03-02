@@ -97,7 +97,7 @@ spark.sql(
 
 # Make sure to drop the inference table of it exists
 spark.sql(
-    f"DROP TABLE IF EXISTS {catalog}.{schema}.`{model_serving_endpoint_name}_payload`"
+    f"DROP TABLE IF EXISTS {catalog}.{log_schema}.`{model_serving_endpoint_name}_payload`"
 )
 
 # COMMAND ----------
