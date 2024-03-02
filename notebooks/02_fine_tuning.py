@@ -31,12 +31,13 @@
 # MAGIC
 # MAGIC TensorBoard reads the event log and shows that in (near) real time on the dashboard. But if you're writing out the event log to DBFS, it won't show it until the file is closed for writing. The file will appear once the training is complete and the TensorBoard dashboard won't be updated until the training completes. This obviously is not good if you want to track the training in real time. In this case, we suggest you to write the event log to a directory on the driver node (instead of DBFS) and run your TensorBoard there. Files stored on the driver node may get removed when the cluster terminates or restarts. But when you are running the training on Databricks notebook, MLflow will automatically log your Tensorboard artifacts, and you will be able to recover them later. You can find the example of this below. </span>
 # MAGIC
-# MAGIC ***Change*** l.832 in train_dreambooth_lora_sdxl.py from ```logging_dir = Path(args.output_dir, args.logging_dir)``` to ```logging_dir = Path(args.logging_dir)```. Otherwise the tensorboard logs will be written to dbfs location specified as output_dir. 
+# MAGIC ***Change*** l.832 in train_dreambooth_lora_sdxl.py from ```logging_dir = Path(args.output_dir, args.logging_dir)``` to ```logging_dir = Path(args.logging_dir)```. Otherwise the tensorboard logs will be written to dbfs location specified as output_dir.
 
 # COMMAND ----------
 
 import os
 from tensorboard import notebook
+
 logdir = "/databricks/driver/logdir/sdxl/"
 notebook.start("--logdir {} --reload_multifile True".format(logdir))
 
@@ -52,9 +53,9 @@ notebook.start("--logdir {} --reload_multifile True".format(logdir))
 
 theme = "chair"
 root_dir = "/Volumes/sdxl"
-os.environ['DATASET_NAME'] = f"{root_dir}/{theme}/dataset"
-os.environ['OUTPUT_DIR'] = f"{root_dir}/{theme}/adaptor"
-os.environ['LOGDIR'] = logdir
+os.environ["DATASET_NAME"] = f"{root_dir}/{theme}/dataset"
+os.environ["OUTPUT_DIR"] = f"{root_dir}/{theme}/adaptor"
+os.environ["LOGDIR"] = logdir
 spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
 
 # COMMAND ----------
@@ -83,6 +84,14 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
 # MAGIC %sh ls -ltr $OUTPUT_DIR
 
 # COMMAND ----------
@@ -93,31 +102,43 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS sdxl.{theme}.adaptor")
 # COMMAND ----------
 
 from diffusers import DiffusionPipeline, AutoencoderKL
+import torch
 
 theme = "chair"
 root_dir = "/Volumes/sdxl"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
+vae = AutoencoderKL.from_pretrained(
+    "madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16
+)
 pipe = DiffusionPipeline.from_pretrained(
     "stabilityai/stable-diffusion-xl-base-1.0",
     vae=vae,
     torch_dtype=torch.float16,
     variant="fp16",
-    use_safetensors=True
-    )
+    use_safetensors=True,
+)
 pipe.load_lora_weights(f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors")
 pipe = pipe.to(device)
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 import glob
 
-types = ['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
+types = ["bcnchr", "emslng", "hsmnchr", "rckchr", "wdnchr"]
 
 num_imgs_to_preview = len(types)
 imgs = []
 for type in types:
-  imgs.append(pipe(prompt=f"A photo of red {type} chair in a living room", num_inference_steps=25).images[0])
+    imgs.append(
+        pipe(
+            prompt=f"A photo of red {type} chair in a living room",
+            num_inference_steps=25,
+        ).images[0]
+    )
 show_image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
 # COMMAND ----------
@@ -127,17 +148,16 @@ show_image_grid(imgs[:num_imgs_to_preview], 1, num_imgs_to_preview)
 
 # COMMAND ----------
 
-import transformers
 import mlflow
 import torch
-import accelerate
-import diffusers
+
+
 
 class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
     def __init__(self, vae_name, model_name):
         self.vae_name = vae_name
         self.model_name = model_name
-    
+
     def load_context(self, context):
         """
         This method initializes the vae and the model
@@ -146,30 +166,32 @@ class sdxl_fine_tuned(mlflow.pyfunc.PythonModel):
         # Initialize tokenizer and language model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.vae = diffusers.AutoencoderKL.from_pretrained(
-            self.vae_name, 
-            torch_dtype=torch.float16
-            )
+            self.vae_name, torch_dtype=torch.float16
+        )
         self.pipe = diffusers.DiffusionPipeline.from_pretrained(
             self.model_name,
             vae=self.vae,
             torch_dtype=torch.float16,
             variant="fp16",
-            use_safetensors=True
-            )
-        self.pipe.load_lora_weights(context.artifacts['repository'])
+            use_safetensors=True,
+        )
+        self.pipe.load_lora_weights(context.artifacts["repository"])
         self.pipe = self.pipe.to(self.device)
-        
+
     def predict(self, context, model_input):
         """
         This method generates prediction for the given input.
         """
         prompt = model_input["prompt"][0]
-        num_inference_steps = model_input.get("num_inference_steps",[25])[0]
+        num_inference_steps = model_input.get("num_inference_steps", [25])[0]
         # Generate the image
-        image = self.pipe(prompt=prompt, num_inference_steps=num_inference_steps).images[0]
+        image = self.pipe(
+            prompt=prompt, num_inference_steps=num_inference_steps
+        ).images[0]
         # Convert the image to numpy array for returning as prediction
         image_np = np.array(image)
         return image_np
+
 
 # COMMAND ----------
 
@@ -181,36 +203,40 @@ output = f"{root_dir}/{theme}/adaptor/pytorch_lora_weights.safetensors"
 
 # COMMAND ----------
 
+import numpy as np
+import pandas as pd
 import mlflow
 from mlflow.models.signature import ModelSignature
-from mlflow.types import DataType, Schema, ColSpec, TensorSpec 
+from mlflow.types import DataType, Schema, ColSpec, TensorSpec
 import transformers, bitsandbytes, accelerate, deepspeed, diffusers
 
-mlflow.set_registry_uri('databricks-uc')
+mlflow.set_registry_uri("databricks-uc")
 
 # Define input and output schema
-input_schema = Schema([
-    ColSpec(DataType.string, "prompt"), 
-    ColSpec(DataType.long, "num_inference_steps")])
-output_schema = Schema([TensorSpec(np.dtype(np.uint8), (-1, 768,3))])
+input_schema = Schema(
+    [ColSpec(DataType.string, "prompt"), ColSpec(DataType.long, "num_inference_steps")]
+)
+output_schema = Schema([TensorSpec(np.dtype(np.uint8), (-1, 768, 3))])
 signature = ModelSignature(inputs=input_schema, outputs=output_schema)
 
 # Define input example
-input_example=pd.DataFrame({
-            "prompt":[f"A photo of {theme} in a living room"], 
-            "num_inference_steps": [25]})
+input_example = pd.DataFrame(
+    {"prompt": [f"A photo of {theme} in a living room"], "num_inference_steps": [25]}
+)
 
 # Log the model with its details such as artifacts, pip requirements and input example
 with mlflow.start_run() as run:
     mlflow.pyfunc.log_model(
         "model",
         python_model=sdxl_fine_tuned(vae_name, model_name),
-        artifacts={'repository' : output},
-        pip_requirements=["transformers=="+transformers.__version__, 
-                          "bitsandbytes=="+bitsandbytes.__version__, 
-                          "accelerate=="+accelerate.__version__, 
-                          "deepspeed=="+deepspeed.__version__, 
-                          "diffusers=="+diffusers.__version__],
+        artifacts={"repository": output},
+        pip_requirements=[
+            "transformers==" + transformers.__version__,
+            "bitsandbytes==" + bitsandbytes.__version__,
+            "accelerate==" + accelerate.__version__,
+            "deepspeed==" + deepspeed.__version__,
+            "diffusers==" + diffusers.__version__,
+        ],
         input_example=input_example,
         signature=signature,
     )
@@ -239,6 +265,7 @@ result = mlflow.register_model(
 
 # COMMAND ----------
 
+
 def get_latest_model_version(mlflow_client, registered_name):
     latest_version = 1
     for mv in mlflow_client.search_model_versions(f"name='{registered_name}'"):
@@ -247,13 +274,14 @@ def get_latest_model_version(mlflow_client, registered_name):
             latest_version = version_int
     return latest_version
 
+
 # COMMAND ----------
 
 import mlflow
 from mlflow import MlflowClient
 import pandas as pd
 
-mlflow.set_registry_uri('databricks-uc')
+mlflow.set_registry_uri("databricks-uc")
 mlflow_client = MlflowClient()
 
 theme = "chair"
@@ -266,8 +294,13 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 
 # COMMAND ----------
 
-#['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
-input_example = pd.DataFrame({"prompt":["A photo of blue emslng chair in a living room"], "num_inference_steps":[25]})
+# ['bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr']
+input_example = pd.DataFrame(
+    {
+        "prompt": ["A photo of green wdnchr chair in a living room"],
+        "num_inference_steps": [25],
+    }
+)
 image = loaded_model.predict(input_example)
 show_image(image)
 

@@ -1,19 +1,14 @@
 # Databricks notebook source
 # Installing requirement libraries
-%pip install -r ../requirements.txt --quiet
-dbutils.library.restartPython()
+# MAGIC %pip install -r ../requirements.txt --quiet
+# MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
 # Common imports used throughout.
-import glob
-import pandas as pd
-import numpy as np
-import requests
 import matplotlib.pyplot as plt
 import PIL
 import torch
-from transformers import AutoProcessor, BlipForConditionalGeneration
 
 # COMMAND ----------
 
@@ -23,7 +18,7 @@ def show_image(image: PIL.Image.Image):
     Show one generated image.
     """
     plt.imshow(image)
-    plt.axis('off')
+    plt.axis("off")
     plt.show()
 
 
@@ -45,8 +40,12 @@ def caption_images(input_image, blip_processor, blip_model, device):
     """
     Caption images with an annotation model.
     """
-    inputs = blip_processor(images=input_image, return_tensors="pt").to(device, torch.float16)
+    inputs = blip_processor(images=input_image, return_tensors="pt").to(
+        device, torch.float16
+    )
     pixel_values = inputs.pixel_values
     generated_ids = blip_model.generate(pixel_values=pixel_values, max_length=50)
-    generated_caption = blip_processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    generated_caption = blip_processor.batch_decode(
+        generated_ids, skip_special_tokens=True
+    )[0]
     return generated_caption

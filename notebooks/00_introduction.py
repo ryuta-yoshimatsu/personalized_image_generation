@@ -12,7 +12,7 @@
 # MAGIC
 # MAGIC
 # MAGIC ## Why Stable Diffusion XL?
-# MAGIC [Stable Diffusion XL Base](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)   
+# MAGIC [Stable Diffusion XL Base](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)
 # MAGIC
 # MAGIC ## Why Dreambooth?
 # MAGIC [Dreambooth](https://dreambooth.github.io/)
@@ -37,10 +37,10 @@ from diffusers import DiffusionPipeline
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pipe = DiffusionPipeline.from_pretrained(
-  "stabilityai/stable-diffusion-xl-base-1.0", 
-  torch_dtype=torch.float16, 
-  use_safetensors=True, 
-  variant="fp16"
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    torch_dtype=torch.float16,
+    use_safetensors=True,
+    variant="fp16",
 )
 
 pipe.to(device)
@@ -58,10 +58,8 @@ show_image(image)
 # MAGIC
 # MAGIC | library                                | description             | license    | source                                              |
 # MAGIC |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
-# MAGIC | hugging face | | | 
-# MAGIC | stable diffusion xl base | | |         
-# MAGIC | dreambooth | | | 
+# MAGIC | hugging face | | |
+# MAGIC | stable diffusion xl base | | |
+# MAGIC | dreambooth | | |
 
 # COMMAND ----------
-
-
