@@ -4,6 +4,7 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Install requirements and load helper functions
 # MAGIC %run ./util
 
 # COMMAND ----------
@@ -54,6 +55,7 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.adaptor")
 # MAGIC Other parameters:
 # MAGIC * Use `--output_dir` to specify your LoRA model repository name.
 # MAGIC * Use `--caption_column` to specify name of the caption column in your dataset.
+# MAGIC * Make sure to pass the right number of GPUs to the parameter `num_processes` in `yamls/accelerate/zero2.yaml`.
 
 # COMMAND ----------
 

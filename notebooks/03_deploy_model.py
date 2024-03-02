@@ -77,7 +77,7 @@ my_json = {
             {
                 "model_name": model_name,
                 "model_version": model_version,
-                "workload_type": "GPU_MEDIUM",
+                "workload_type": "GPU_MEDIUM", # For Azure Databricks, use GPU_LARGE instead
                 "workload_size": "Small",
                 "scale_to_zero_enabled": "false",
             }
