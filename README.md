@@ -7,7 +7,7 @@ Like any other generative models, tailoring the output content is crucial for bu
 
 This solution accelerator provides users with a tool to expedite the end-to-end development of personalized image generation models. The asset including a series of notebooks demonstrates how to preprocess subject images, how to fine-tune a text-to-image diffusion model, how to manage the fine-tuned model, and how to make that model available for downstream applications by deploying it behind a real-time endpoint. The solution is by design customizable (bring your own images) and scalable leveraging the powerful distributed compute infrastructure of Databricks.
 
-The solution specifically uses DreamBooth to fine-tune Stable Diffusion XL using sample images featuring designer chairs.
+The solution uses DreamBooth to fine-tune Stable Diffusion XL using sample images featuring designer chairs.
 
 
 ## Why Stable Diffusion XL?
