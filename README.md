@@ -1,6 +1,6 @@
 <img src='https://github.com/databricks-industry-solutions/.github/raw/main/profile/solacc_logo_wide.png' width="1000" ></img>
 
-# Building Personalized Image Generation Model
+# Creating Brand-Aligned Images Using Generative AI
 Recent advancements in large text-to-image models have shown unparalleled capabilities, enabling high-quality generation of images in diverse contexts based on natural language prompts or existing images. Today, design professionals across various industries are harnessing these models to generate images that serve as inspiration for their next product designs. With or without further refinement, the generated images may even be used as initial prototypes.
 
 Like any other generative models, tailoring the output content is crucial for building a successful application. For example, fashion designers may want to generate images of an item reflecting a style of a specific collection. Furniture designers may want to see famous designer chairs made from different materials or in different colors. Customization is necessary for such use cases. However, pre-trained text-to-image models available today often lack the capacity to accurately generate specific subjects in various contexts. Thus, fine-tuning the models on the  specific subject images becomes essential.

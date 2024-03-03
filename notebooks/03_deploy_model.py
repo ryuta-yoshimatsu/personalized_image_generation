@@ -6,13 +6,13 @@
 
 # MAGIC %md
 # MAGIC
-# MAGIC # Create a model serving endpoint with Python
+# MAGIC #Create a model serving endpoint with Python
 # MAGIC
 # MAGIC This notebook covers wrapping the REST API queries for model serving endpoint creation, updating endpoint configuration based on model version, and endpoint deletion with Python for your Python model serving workflows.
 # MAGIC
 # MAGIC Learn more about model serving on Databricks ([AWS](https://docs.databricks.com/machine-learning/model-serving/create-manage-serving-endpoints.html) | [Azure](https://learn.microsoft.com/azure/databricks/machine-learning/model-inference/serverless/create-manage-serverless-endpoints)).
 # MAGIC
-# MAGIC ## Requirements
+# MAGIC ##Requirements
 # MAGIC
 # MAGIC Databricks Runtime ML 12.0 or above
 # MAGIC
@@ -33,7 +33,6 @@ model_serving_endpoint_name = f"sdxl-fine-tuned-{theme}"
 
 # MAGIC %md
 # MAGIC ## Get token and model version
-# MAGIC
 # MAGIC  The following section demonstrates how to provide both a token for the API, which can be obtained from the notebook and how to get the latest model version you plan to serve and deploy.
 
 # COMMAND ----------
@@ -185,7 +184,7 @@ func_create_endpoint(model_serving_endpoint_name)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Wait for end point to be ready
+# MAGIC ## Wait for the endpoint to be ready
 # MAGIC
 # MAGIC The `wait_for_endpoint()` function defined in the following command gets and returns the serving endpoint status.
 
@@ -220,7 +219,6 @@ wait_for_endpoint()
 
 # MAGIC %md
 # MAGIC ## Score the model
-# MAGIC
 # MAGIC The following command defines the `score_model()` function  and an example scoring request under the `payload_json` variable.
 
 # COMMAND ----------

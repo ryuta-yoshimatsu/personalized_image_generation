@@ -5,22 +5,19 @@
 # COMMAND ----------
 
 # DBTITLE 1,Install requirements and load helper functions
-# MAGIC %run ./util
+# MAGIC %run ./utils
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Fine-tune Stable Diffusion XL with DreamBooth and LoRA
+# MAGIC # Fine-tune Stable Diffusion XL with DreamBooth and LoRA
+# MAGIC For fine-tuning, we use [DreamBooth](https://dreambooth.github.io/), which is a technique allowing us to update the weights of a pre-trained text-to-image model using only a few images of subjects. The implementation of DreamBooth is available via the [diffusers](https://huggingface.co/docs/diffusers/en/index) library.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC
-# MAGIC ### Set up TensorBoard
-# MAGIC
-# MAGIC TensorBoard allows you to visualize model training and lets you monitor if the training is going well.
-# MAGIC
-# MAGIC TensorBoard reads the event log file and exposes it in near real time on the dashboard. But if you're writing out the event log to DBFS, it won't show until the file is closed for writing, which is when the training is complete. This is not good for a real time monitoring purpose. In this case, we suggest to write the event log to the driver node (instead of DBFS) and run your TensorBoard there. Files stored on the driver node may get removed when the cluster terminates or restarts. But when you are running the training on Databricks notebook, MLflow will automatically log your Tensorboard artifacts, and you will be able to recover them later. You can find the example of this below.
+# MAGIC ## Set up TensorBoard
+# MAGIC [TensorBoard](https://www.tensorflow.org/tensorboard) is an open source monitoring solution for model training. It reads the event log file and exposes it in near real time on the dashboard. But if you're writing out the event log to DBFS, it won't show until the file is closed for writing, which is when the training is complete. This is not good for a real time monitoring purpose. In this case, we suggest to write the event log to the driver node (instead of DBFS) and run your TensorBoard there. Files stored on the driver node may get removed when the cluster terminates or restarts. But when you are running the training on Databricks notebook, MLflow will automatically log your Tensorboard artifacts, and you will be able to recover them later. You can find the example of this below.
 
 # COMMAND ----------
 
@@ -43,23 +40,23 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.adaptor")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Set Parameters
-# MAGIC To ensure we can use DreamBooth with LoRA on a heavy pipeline like Stable Diffusion XL, we're using the following hyperparameters:
+# MAGIC ## Set Parameters
+# MAGIC To ensure we can use DreamBooth with LoRA on a heavy pipeline like Stable Diffusion XL, we use the following hyperparameters:
 # MAGIC
 # MAGIC * Gradient checkpointing (`--gradient_accumulation_steps`)
 # MAGIC * 8-bit Adam (`--use_8bit_adam`)
 # MAGIC * Mixed-precision training (`--mixed-precision="fp16"`)
-# MAGIC * Some other parameters are defined in `yamls/accelerate/zero2.yaml`
+# MAGIC * Some other parameters are defined in `yamls/zero2.yaml`
 # MAGIC <br>
 # MAGIC
 # MAGIC Other parameters:
 # MAGIC * Use `--output_dir` to specify your LoRA model repository name.
 # MAGIC * Use `--caption_column` to specify name of the caption column in your dataset.
-# MAGIC * Make sure to pass the right number of GPUs to the parameter `num_processes` in `yamls/accelerate/zero2.yaml`.
+# MAGIC * Make sure to pass the right number of GPUs to the parameter `num_processes` in `yamls/zero2.yaml`.
 
 # COMMAND ----------
 
-# MAGIC %sh accelerate launch --config_file ../yamls/accelerate/zero2.yaml ../personalized_image_generation/train_dreambooth_lora_sdxl.py \
+# MAGIC %sh accelerate launch --config_file ../yamls/zero2.yaml ../personalized_image_generation/train_dreambooth_lora_sdxl.py \
 # MAGIC   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
 # MAGIC   --pretrained_vae_model_name_or_path="madebyollin/sdxl-vae-fp16-fix" \
 # MAGIC   --dataset_name=$DATASET_NAME \
@@ -89,6 +86,7 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.adaptor")
 
 # MAGIC %md
 # MAGIC ## Test inference
+# MAGIC Lets take the fine-tuned model and generate some images!
 
 # COMMAND ----------
 
@@ -249,8 +247,11 @@ result = mlflow.register_model(
 
 # MAGIC %md
 # MAGIC ## Load the registered model back to make inference
-# MAGIC
-# MAGIC Restart the Python to release the GPU memory occupied in Training.
+# MAGIC If you come accross an out of memory issue, restart the Python kernel to release the GPU memory occupied in Training. For uncomment and run the following cell.
+
+# COMMAND ----------
+
+#dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -284,10 +285,15 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC Armed with this model, the design team can now explore new variations of their products (Figure 4) and even produce all-together new items reflective of the designs of previously produced items in their portfolio (Figure 5).
+
+# COMMAND ----------
+
 # Use any of the following token to generate personalized images: 'bcnchr', 'emslng', 'hsmnchr', 'rckchr', 'wdnchr'
 input_example = pd.DataFrame(
     {
-        "prompt": ["A photo of a brown emslng chair in a living room"],
+        "prompt": ["A photo of a long brown sofa in the style of the bcnchr chair"],
         "num_inference_steps": [25],
     }
 )
