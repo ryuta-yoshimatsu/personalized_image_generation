@@ -6,28 +6,28 @@
 # COMMAND ----------
 
 # DBTITLE 1,Install requirements and load helper functions
-# MAGIC %run ./util
+# MAGIC %run ./utils
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #Fine-tune on your own images
-# MAGIC Like any other generative models, tailoring the output is crucial for building a successful application. This is not an exception with image generation models. For example, a furniture designer wants to see their previous designs reflected on the generated images, but with a slight touch of modification in materials or colors. Customization of the model is necessary in a case like this. You can do this by bringing in your own images.
+# MAGIC #Prepare your images for fine-tuning
+# MAGIC  Tailoring the output of a generative model is crucial for building a successful application. This applies to use cases powered by an image generation model as well. For example, a furniture designer wants to see their previous designs reflected on a newly generated image. But they also want to see some modifications, for example in material or color. In such case, it is important that the model is aware of their previous products and can apply new styles to generate new product designs. Customization is necessary in a case like this. We can do this by fine-tuning a pre-trained model on our own images.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Manages your image files using Unity Catalog Volumes
+# MAGIC ## Manage your images in Unity Catalog Volumes
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC This example uses the 25 training images stored in the subfolders of ```/images/chair/```. We copy the images to Unity Catalog (UC) and managed them as volume files. To adapt this solution to your use case, you can directly upload your images in UC Volumes.
+# MAGIC This solution accelerator uses the 25 training images stored in the subfolders of ```/images/chair/``` to fine-tune a model. We copy the images to Unity Catalog (UC) and managed them as volume files. To adapt this solution to your use case, you can directly upload your images in UC volumes.
 
 # COMMAND ----------
 
 theme = "chair"
-catalog = "sdxl_image_gen" # Name of the catalog you want to use to manage your assets (e.g. images) 
+catalog = "sdxl_image_gen" # Name of the catalog we use to manage our assets (e.g. images, weights, datasets) 
 volumes_dir = f"/Volumes/{catalog}/{theme}" # Path to the directories in UC Volumes
 
 # COMMAND ----------
@@ -68,21 +68,15 @@ show_image_grid(imgs[:num_imgs_to_preview], 5, 5) # Custom function defined in u
 
 # MAGIC %md
 # MAGIC ## Annotate your images with a unique token
-# MAGIC We need to provide a caption for each of the images associated with a given style of chair. An important thing here is to provide a unique token for each style of chair and use it in the captions: e.g. “A photo of a BCNCHR chair”. The uniqueness of the token is important for preserving syntactic and semantic knowledge, which the base model brings be defaul. The idea of fine-tuning is not to mess up with what the model knows already, and to encode a new token and link that with the subject image. Read more about this [here](https://dreambooth.github.io/).
+# MAGIC Note that the 25 images above consists of 5 different styles of chair and each style has 5 images. We need to provide a caption for each of the images associated with a given style of chair. An important thing here is to provide a unique token for each style and use it in the captions: e.g. “A photo of a BCNCHR chair”, where BCNCHR is the unique token assigned to the black leather chair in top row. The uniqueness of the token helps us preserve the syntactic and semantic knowledge that the base pre-trained model brings by default. The idea of fine-tuning is not to mess up with what the model knows already, and to encode a new token and learn the association between that token and the subject. Read more about this [here](https://dreambooth.github.io/).
 # MAGIC
-# MAGIC We will add the token identifier (e.g. bcnchr) to each caption using a caption prefix. Feel free to change the prefix according to the theme you're training on.
-# MAGIC
-# MAGIC - For this example, we use "a photo of TOKEN," other options include:
-# MAGIC     - For styles - "in the style of TOKEN"
-# MAGIC     - For faces - "photo of a TOKEN person"
-# MAGIC - You can add additional identifiers to the prefix that can help steer the model in the right direction.
-# MAGIC -- e.g. for this example, instead of "a photo of a TOKEN" we can use "a photo of a TOKEN chair" / "a photo of a TOKEN designer chair"
+# MAGIC We add a token (e.g. BCNCHR) to each caption using a caption prefix. For this example, we use "a photo of a BCNCHR chair," but other options include: "a photo of a chair in the style of BCNCHR".
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Automate the generation of custom captions with BLIP
-# MAGIC When you have too many training images, automating the caption generation using a model like BLIP is an option. 
+# MAGIC When we have too many training images, automating the caption generation using a model like BLIP is also an option. 
 
 # COMMAND ----------
 
@@ -116,7 +110,7 @@ for img in imgs_and_paths:
     caption_prefix = f"a photo of a {instance_class} {theme}: "
     caption = (
         caption_prefix
-        + caption_images(img[1], blip_processor, blip_model, device).split("\n")[0]
+        + caption_images(img[1], blip_processor, blip_model, device).split("\n")[0] # Function caption_images is defined in utils notebook 
     )
     captions.append(caption)
 
@@ -128,6 +122,7 @@ display(pd.DataFrame(captions).rename(columns={0: "caption"}))
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Manage Dataset in UC Volumes
 # MAGIC We create a Hugging Face Dataset object and store it in Unity Catalog Volume.
 
 # COMMAND ----------
@@ -144,4 +139,11 @@ dataset.save_to_disk(f"/Volumes/{catalog}/{theme}/dataset")
 
 # COMMAND ----------
 
+# MAGIC %md Let's free up some memory again.
 
+# COMMAND ----------
+
+import gc
+del blip_processor, blip_model
+gc.collect()
+torch.cuda.empty_cache()
