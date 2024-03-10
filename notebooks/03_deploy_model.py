@@ -1,32 +1,30 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC This solution accelerator notebook is available at https://github.com/databricks-industry-solutions.
+# MAGIC This solution accelerator notebook is available at [Databricks Industry Solutions](https://github.com/databricks-industry-solutions).
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC
 # MAGIC #Create a model serving endpoint with Python
-# MAGIC
-# MAGIC This notebook covers wrapping the REST API queries for model serving endpoint creation, updating endpoint configuration based on model version, and endpoint deletion with Python for your Python model serving workflows.
-# MAGIC
-# MAGIC Learn more about model serving on Databricks ([AWS](https://docs.databricks.com/machine-learning/model-serving/create-manage-serving-endpoints.html) | [Azure](https://learn.microsoft.com/azure/databricks/machine-learning/model-inference/serverless/create-manage-serverless-endpoints)).
-# MAGIC
-# MAGIC ##Requirements
-# MAGIC
-# MAGIC Databricks Runtime ML 12.0 or above
-# MAGIC
+# MAGIC Now we have a fine-tuned model registered in Unity Catalog, our final step is to deploy this model behind a Model Serving endpoint. This notebook covers wrapping the REST API queries for model serving endpoint creation, updating endpoint configuration based on model version, and endpoint deletion with Python for your Python model serving workflows.
 
 # COMMAND ----------
 
 import mlflow
-
 mlflow.set_registry_uri("databricks-uc")
 client = mlflow.tracking.MlflowClient()
+
+# COMMAND ----------
+
+# MAGIC %md Specify some variables.
+
+# COMMAND ----------
+
 theme = "chair"
 catalog = "sdxl_image_gen"
-log_schema = "log"
-model_name = f"{catalog}.model.sdxl-fine-tuned-{theme}"  # an existing model in model registry, may have multiple versions
+log_schema = "log" # A schema within the catalog where the inferece log is going to be stored 
+model_name = f"{catalog}.model.sdxl-fine-tuned-{theme}"  # An existing model in model registry, may have multiple versions
 model_serving_endpoint_name = f"sdxl-fine-tuned-{theme}"
 
 # COMMAND ----------
@@ -64,6 +62,7 @@ model_version = champion_version.version
 
 # MAGIC %md
 # MAGIC ## Set up configurations
+# MAGIC Depending on the latency and throughput requirements of your use case, you want to choose the right `workload_type` and `workload_size`. **Note that if you're using Azure Databricks, use `GPU_LARGE` for `workload_type`**. The `auto_capture_config` block specifies where to write the inference logs: i.e. requests and responses from the endpoint with a timestamp. 
 
 # COMMAND ----------
 
@@ -76,7 +75,7 @@ my_json = {
             {
                 "model_name": model_name,
                 "model_version": model_version,
-                "workload_type": "GPU_MEDIUM", # For Azure Databricks, use GPU_LARGE instead
+                "workload_type": "GPU_MEDIUM",
                 "workload_size": "Small",
                 "scale_to_zero_enabled": "false",
             }
@@ -90,12 +89,12 @@ my_json = {
 }
 
 # Make sure to the schema for the inference table exists
-spark.sql(
+_ = spark.sql(
     f"CREATE SCHEMA IF NOT EXISTS {catalog}.{log_schema}"
 )
 
 # Make sure to drop the inference table of it exists
-spark.sql(
+_ = spark.sql(
     f"DROP TABLE IF EXISTS {catalog}.{log_schema}.`{model_serving_endpoint_name}_payload`"
 )
 
@@ -285,6 +284,17 @@ plt.show()
 # COMMAND ----------
 
 func_delete_model_serving_endpoint(model_serving_endpoint_name)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC © 2024 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License. All included or referenced third party libraries are subject to the licenses set forth below.
+# MAGIC
+# MAGIC | library                                | description             | license    | source                                              |
+# MAGIC |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
+# MAGIC | bitsandbytes | Accessible large language models via k-bit quantization for PyTorch. | MIT | https://pypi.org/project/bitsandbytes/
+# MAGIC | diffusers | A library for pretrained diffusion models for generating images, audio, etc. | Apache 2.0 | https://pypi.org/project/diffusers/
+# MAGIC | stable-diffusion-xl-base-1.0 | A model that can be used to generate and modify images based on text prompts. | CreativeML Open RAIL++-M License | https://github.com/Stability-AI/generative-models
 
 # COMMAND ----------
 
