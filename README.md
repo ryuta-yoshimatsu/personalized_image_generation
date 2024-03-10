@@ -15,7 +15,7 @@ The solution uses DreamBooth to fine-tune Stable Diffusion XL using sample image
 
 
 ## Why DreamBooth?
-[Dreambooth](https://dreambooth.github.io/) is an innovative technique developed by researchers from Google Research and Boston University that enables fine-tuning of text-to-image models using only a few images depicting a particular subject or style. Following fine-tuning, the models acquire the ability to generate images of the subject/s in diverse contexts. DreamBooth is seamlessly integrated into Hugging Face’s Diffusers library, with its training scripts readily available to the public.
+[Dreambooth](https://dreambooth.github.io/) is an innovative technique developed by researchers from Google Research and Boston University that enables fine-tuning of text-to-image models using only a few images depicting a particular subject or style. Through fine-tuning the models acquire the ability to generate images of the subject/s in diverse contexts. DreamBooth is seamlessly integrated into Hugging Face’s Diffusers library, with its training scripts readily available to the public.
 
 
 ## Why Databricks Mosaic AI?
