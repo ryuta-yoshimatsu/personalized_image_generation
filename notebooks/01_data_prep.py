@@ -1,7 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC This solution accelerator notebook is available at https://github.com/databricks-industry-solutions.
-# MAGIC
+# MAGIC This solution accelerator notebook is available at [Databricks Industry Solutions](https://github.com/databricks-industry-solutions).
 
 # COMMAND ----------
 
@@ -12,7 +11,7 @@
 
 # MAGIC %md
 # MAGIC #Prepare your images for fine-tuning
-# MAGIC  Tailoring the output of a generative model is crucial for building a successful application. This applies to use cases powered by an image generation model as well. For example, a furniture designer wants to see their previous designs reflected on a newly generated image. But they also want to see some modifications, for example in material or color. In such case, it is important that the model is aware of their previous products and can apply new styles to generate new product designs. Customization is necessary in a case like this. We can do this by fine-tuning a pre-trained model on our own images.
+# MAGIC  Tailoring the output of a generative model is crucial for building a successful application. This applies to use cases powered by image generation models as well. Imagine a scenaio where a furniture designer seeks to generate images for ideation purposes and they want their old products to be reflected on the generated images. Not only that but they also want to see some variations, for example, in material or color. In such instances, it is imperative that the model knows their old products and can apply some new styles on them. Customization is necessary in a case like this. We can do this by fine-tuning a pre-trained model on our own images.
 
 # COMMAND ----------
 
@@ -22,7 +21,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC This solution accelerator uses the 25 training images stored in the subfolders of ```/images/chair/``` to fine-tune a model. We copy the images to Unity Catalog (UC) and managed them as volume files. To adapt this solution to your use case, you can directly upload your images in UC volumes.
+# MAGIC This solution accelerator uses 25 training images stored in the subfolders of ```/images/chair/``` to fine-tune a model. We copy the images to Unity Catalog (UC) and managed them as volume files. **To adapt this solution to your use case, you can directly upload your images in UC volumes.**
 
 # COMMAND ----------
 
@@ -32,11 +31,9 @@ volumes_dir = f"/Volumes/{catalog}/{theme}" # Path to the directories in UC Volu
 
 # COMMAND ----------
 
-# MAGIC %sql CREATE CATALOG IF NOT EXISTS sdxl_image_gen
-
-# COMMAND ----------
-
-# MAGIC %sql CREATE SCHEMA IF NOT EXISTS sdxl_image_gen.chair
+# Make sure that the catalog and the schema exist
+_ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}") 
+_ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{theme}") 
 
 # COMMAND ----------
 
@@ -68,15 +65,15 @@ show_image_grid(imgs[:num_imgs_to_preview], 5, 5) # Custom function defined in u
 
 # MAGIC %md
 # MAGIC ## Annotate your images with a unique token
-# MAGIC Note that the 25 images above consists of 5 different styles of chair and each style has 5 images. We need to provide a caption for each of the images associated with a given style of chair. An important thing here is to provide a unique token for each style and use it in the captions: e.g. “A photo of a BCNCHR chair”, where BCNCHR is the unique token assigned to the black leather chair in top row. The uniqueness of the token helps us preserve the syntactic and semantic knowledge that the base pre-trained model brings by default. The idea of fine-tuning is not to mess up with what the model knows already, and to encode a new token and learn the association between that token and the subject. Read more about this [here](https://dreambooth.github.io/).
+# MAGIC For fine-tuning we need to provide a caption for each training image. 25 images above consists of 5 different styles of chairs. We assign a unique token for each style and use it in the caption: e.g. “A photo of a BCNCHR chair”, where BCNCHR is a unique token assigned to the black leather chair on the top row (see the output of the previous cell). The uniqueness of the token helps us preserve the syntactic and semantic knowledge that the base pre-trained model brings. The idea of fine-tuning is not to mess with what the model already knows, and learn the association between the new token and the subject. Read more about this [here](https://dreambooth.github.io/).
 # MAGIC
-# MAGIC We add a token (e.g. BCNCHR) to each caption using a caption prefix. For this example, we use "a photo of a BCNCHR chair," but other options include: "a photo of a chair in the style of BCNCHR".
+# MAGIC In the following cells, we add a token (e.g. BCNCHR) to each caption using a caption prefix. For this example, we use the format: "a photo of a BCNCHR chair," but it could also be something like: "a photo of a chair in the style of BCNCHR".
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Automate the generation of custom captions with BLIP
-# MAGIC When we have too many training images, automating the caption generation using a model like BLIP is also an option. 
+# MAGIC When we have too many training images, automating the caption generation using a model like BLIP is an option. 
 
 # COMMAND ----------
 
@@ -147,3 +144,14 @@ import gc
 del blip_processor, blip_model
 gc.collect()
 torch.cuda.empty_cache()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC © 2024 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License. All included or referenced third party libraries are subject to the licenses set forth below.
+# MAGIC
+# MAGIC | library                                | description             | license    | source                                              |
+# MAGIC |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
+# MAGIC | bitsandbytes | Accessible large language models via k-bit quantization for PyTorch. | MIT | https://pypi.org/project/bitsandbytes/
+# MAGIC | diffusers | A library for pretrained diffusion models for generating images, audio, etc. | Apache 2.0 | https://pypi.org/project/diffusers/
+# MAGIC | stable-diffusion-xl-base-1.0 | A model that can be used to generate and modify images based on text prompts. | CreativeML Open RAIL++-M License | https://github.com/Stability-AI/generative-models

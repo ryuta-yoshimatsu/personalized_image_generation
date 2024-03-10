@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC This solution accelerator notebook is available at https://github.com/databricks-industry-solutions.
+# MAGIC This solution accelerator notebook is available at [Databricks Industry Solutions](https://github.com/databricks-industry-solutions).
 
 # COMMAND ----------
 
@@ -11,21 +11,28 @@
 
 # MAGIC %md
 # MAGIC # Fine-tune Stable Diffusion XL with DreamBooth and LoRA
-# MAGIC For fine-tuning, we use [DreamBooth](https://dreambooth.github.io/), which is a technique allowing us to update the weights of a pre-trained text-to-image model using only a few images of subjects. The implementation of DreamBooth is available via the [diffusers](https://huggingface.co/docs/diffusers/en/index) library.
+# MAGIC For fine-tuning, we use [DreamBooth](https://dreambooth.github.io/), which is a technique to update the weights of a pre-trained text-to-image model using only a few images. We use the [Diffusers](https://huggingface.co/docs/diffusers/en/index)' implementation of DreamBooth in this solution accelerator.
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Set up TensorBoard
-# MAGIC [TensorBoard](https://www.tensorflow.org/tensorboard) is an open source monitoring solution for model training. It reads the event log file and exposes it in near real time on the dashboard. But if you're writing out the event log to DBFS, it won't show until the file is closed for writing, which is when the training is complete. This is not good for a real time monitoring purpose. In this case, we suggest to write the event log to the driver node (instead of DBFS) and run your TensorBoard there. Files stored on the driver node may get removed when the cluster terminates or restarts. But when you are running the training on Databricks notebook, MLflow will automatically log your Tensorboard artifacts, and you will be able to recover them later. You can find the example of this below.
+# MAGIC [TensorBoard](https://www.tensorflow.org/tensorboard) is an open source monitoring solution for model training. It reads an event log and exposes the training metrics in near real-time on its dashboard, which helps gauge the status of fine-tuning without having to wait until it's done.
+# MAGIC
+# MAGIC Note that when you write the event log to DBFS, it won't show until the file is closed for writing, which is when the training is complete. This is not good for real time monitoring. So we suggest to write the event log out to the driver node and run your TensorBoard from there (see the cell below on how to do this). Files stored on the driver node may get removed when the cluster terminates or restarts. But when you are running the training on Databricks notebook, MLflow will automatically log your Tensorboard artifacts, and you will be able to recover them later. You can find the example of this below.
 
 # COMMAND ----------
 
 import os
 from tensorboard import notebook
 
-logdir = "/databricks/driver/logdir/sdxl/"
+logdir = "/databricks/driver/logdir/sdxl/" # Write event log to the driver node
 notebook.start("--logdir {} --reload_multifile True".format(logdir))
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Let's specifiy some variables.
 
 # COMMAND ----------
 
@@ -35,7 +42,9 @@ volumes_dir = "/Volumes/sdxl_image_gen"
 os.environ["DATASET_NAME"] = f"{volumes_dir}/{theme}/dataset"
 os.environ["OUTPUT_DIR"] = f"{volumes_dir}/{theme}/adaptor"
 os.environ["LOGDIR"] = logdir
-spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.adaptor")
+
+# Make sure that the volume exists
+_ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.adaptor")
 
 # COMMAND ----------
 
@@ -235,7 +244,8 @@ with mlflow.start_run() as run:
 # COMMAND ----------
 
 # Make sure that the schema for the model exist
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.model")
+_ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.model")
+
 # Register the model 
 registered_name = f"{catalog}.model.sdxl-fine-tuned-{theme}"
 result = mlflow.register_model(
@@ -286,7 +296,7 @@ loaded_model = mlflow.pyfunc.load_model(logged_model)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Armed with this model, the design team can now explore new variations of their products (Figure 4) and even produce all-together new items reflective of the designs of previously produced items in their portfolio (Figure 5).
+# MAGIC Armed with this model, the design team can now explore new variations of their products and even produce all-together new items reflective of the designs of previously produced items in their portfolio.
 
 # COMMAND ----------
 
@@ -307,4 +317,11 @@ mlflow_client.set_registered_model_alias(registered_name, "champion", model_vers
 
 # COMMAND ----------
 
-
+# MAGIC %md
+# MAGIC © 2024 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License. All included or referenced third party libraries are subject to the licenses set forth below.
+# MAGIC
+# MAGIC | library                                | description             | license    | source                                              |
+# MAGIC |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
+# MAGIC | bitsandbytes | Accessible large language models via k-bit quantization for PyTorch. | MIT | https://pypi.org/project/bitsandbytes/
+# MAGIC | diffusers | A library for pretrained diffusion models for generating images, audio, etc. | Apache 2.0 | https://pypi.org/project/diffusers/
+# MAGIC | stable-diffusion-xl-base-1.0 | A model that can be used to generate and modify images based on text prompts. | CreativeML Open RAIL++-M License | https://github.com/Stability-AI/generative-models
